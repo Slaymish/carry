@@ -6,12 +6,17 @@ With no trained arms the harness runs in demo mode: it builds two synthetic arms
 the reference so the plumbing, the interval and the sabotage control can be exercised
 without a model. Demo output is labelled and is not a result.
 
-To score real arms, pass candidates as JSONL keyed by item index:
+To score real arms, pass candidates as JSONL keyed by held-out set and item index:
 
-    {"index": 0, "base": "...", "adapted": "..."}
+    {"split": "recent", "index": 0, "base": "...", "adapted": "..."}
+    {"split": "anchor", "index": 0, "base": "...", "adapted": "..."}
+
+`split` defaults to "recent", so files written before anchors were scored still load.
+Rows are per item: `base` and `adapted` are two arms answering the same held-out moment.
 
 The measured quantities are the ones the design doc commits to: paired gain on recent
-held-out episodes, a bootstrap interval, and a sabotage control that must fail.
+held-out episodes, a bootstrap interval, the same comparison on the anchor set with its
+own interval (retention), and a sabotage control that must fail.
 """
 
 from __future__ import annotations
@@ -68,26 +73,127 @@ def demo_arms(pairs: Sequence[tuple[str, str]]) -> list[Item]:
     return items
 
 
-def load_arms(path: Path, pairs: Sequence[tuple[str, str]]) -> list[Item]:
-    """Attach supplied candidates to the held-out pairs, in index order."""
-    supplied: dict[int, dict[str, str]] = {}
+SPLITS = ("recent", "anchor")
+
+MIN_ITEMS = 3
+
+ANCHOR_NOTE = "an anchor is only meaningful once something is actually trained"
+
+
+def load_arm_records(path: Path) -> dict[tuple[str, int], tuple[str, str]]:
+    """Read an arms file into (split, index) keys, refusing anything ambiguous.
+
+    A duplicated key and a missing split are both errors rather than last-one-wins: the
+    file is the only record of what the model said, and silently dropping a row would
+    change the number.
+    """
+    records: dict[tuple[str, int], tuple[str, str]] = {}
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
-        record = json.loads(line)
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise StreamError(f"{path}:{number}: not JSON ({exc.msg})") from exc
+        if not isinstance(record, dict):
+            raise StreamError(f"{path}:{number}: expected an object, got {type(record).__name__}")
         index = record.get("index")
-        if not isinstance(index, int):
+        if not isinstance(index, int) or isinstance(index, bool):
             raise StreamError(f"{path}:{number}: index must be an integer")
-        if not isinstance(record.get("base"), str) or not isinstance(record.get("adapted"), str):
+        name = record.get("split", "recent")
+        if name not in SPLITS:
+            raise StreamError(f"{path}:{number}: split must be one of {SPLITS}, got {name!r}")
+        base = record.get("base")
+        adapted = record.get("adapted")
+        if not isinstance(base, str) or not isinstance(adapted, str):
             raise StreamError(f"{path}:{number}: base and adapted must be strings")
-        supplied[index] = {"base": record["base"], "adapted": record["adapted"]}
-    missing = [i for i in range(len(pairs)) if i not in supplied]
+        key = (name, index)
+        if key in records:
+            raise StreamError(f"{path}:{number}: duplicate {name} item {index}")
+        records[key] = (base, adapted)
+    return records
+
+
+def attach_arms(
+    records: dict[tuple[str, int], tuple[str, str]],
+    pairs: Sequence[tuple[str, str]],
+    split_name: str,
+) -> list[Item] | None:
+    """Attach candidates for one held-out set, in index order.
+
+    Returns None when the file carries nothing for that set. Absent is not empty: a file
+    with no anchor rows has not measured retention, and the caller says so rather than
+    scoring nothing and printing a zero.
+    """
+    if not pairs:
+        return None
+    supplied = {index for index in range(len(pairs)) if (split_name, index) in records}
+    if not supplied:
+        return None
+    missing = [index for index in range(len(pairs)) if index not in supplied]
     if missing:
-        raise StreamError(f"{path}: no candidate for item(s) {missing[:5]}")
+        raise StreamError(f"no {split_name} candidate for item(s) {missing[:5]}")
     return [
-        (context, reference, supplied[i]["base"], supplied[i]["adapted"])
-        for i, (context, reference) in enumerate(pairs)
+        (context, reference, *records[(split_name, index)])
+        for index, (context, reference) in enumerate(pairs)
     ]
+
+
+def load_arms(path: Path, pairs: Sequence[tuple[str, str]], *, split_name: str = "recent") -> list[Item]:
+    """Attach supplied candidates to one held-out set, refusing a partial file."""
+    attached = attach_arms(load_arm_records(path), pairs, split_name)
+    if attached is None:
+        raise StreamError(f"{path}: no {split_name} candidates")
+    return attached
+
+
+def retention(
+    records: dict[tuple[str, int], tuple[str, str]],
+    anchor_pairs: Sequence[tuple[str, str]],
+    judge,
+    *,
+    scored: bool,
+) -> dict:
+    """The same paired comparison, on the anchor set, with its own interval.
+
+    Retention asks a different question from gain: not "did it learn" but "did learning
+    the recent material cost what it already knew". It is the one number training longer
+    cannot buy, which is exactly why it may not be invented. With demo arms there is no
+    adaptation to lose, so the harness refuses before scoring rather than printing a
+    confident zero.
+    """
+    if not scored:
+        return {
+            "computed": False,
+            "items": len(anchor_pairs),
+            "reason": "demo arms are synthetic; nothing was trained, so nothing can be retained",
+            "note": ANCHOR_NOTE,
+        }
+    items = attach_arms(records, anchor_pairs, "anchor")
+    if items is None:
+        return {
+            "computed": False,
+            "items": len(anchor_pairs),
+            "reason": "the arms file carries no anchor rows",
+            "note": ANCHOR_NOTE,
+        }
+    if len(items) < MIN_ITEMS:
+        return {
+            "computed": False,
+            "items": len(items),
+            "reason": f"{len(items)} anchor item(s); an interval needs at least {MIN_ITEMS}",
+            "note": ANCHOR_NOTE,
+        }
+    deltas = [comparison.delta for comparison in paired_gain(items, judge)]
+    low, high = bootstrap_interval(deltas)
+    return {
+        "computed": True,
+        "items": len(items),
+        "gain": sum(deltas) / len(deltas),
+        "interval": [low, high],
+        "excludes_zero": bool(low > 0 or high < 0),
+        "note": ANCHOR_NOTE,
+    }
 
 
 def controls(items: Sequence[Item], judge) -> dict[str, float]:
@@ -126,22 +232,37 @@ def sabotage(items: Sequence[Item]) -> list[Item]:
     ]
 
 
-def run(stream: Path, *, gap_hours: float, recent_fraction: float, anchor: int, arms: Path | None) -> dict:
+def run(
+    stream: Path,
+    *,
+    gap_hours: float,
+    recent_fraction: float,
+    anchor: int,
+    arms: Path | None,
+) -> dict:
+    """Score one run end to end. Deterministic: same inputs, same numbers, byte for byte."""
     turns = load_stream(stream)
     episodes = group_episodes(turns, gap=__import__("datetime").timedelta(hours=gap_hours))
     split = holdout(episodes, recent_fraction=recent_fraction, anchor_episodes=anchor)
     check_no_leakage(split)
 
     pairs = build_items(split.recent)
-    if len(pairs) < 3:
+    if len(pairs) < MIN_ITEMS:
         raise StreamError(
-            f"only {len(pairs)} usable held-out item(s); a paired comparison needs at least 3"
+            f"only {len(pairs)} usable held-out item(s); a paired comparison needs "
+            f"at least {MIN_ITEMS}"
         )
 
-    items = load_arms(arms, pairs) if arms else demo_arms(pairs)
+    records = load_arm_records(arms) if arms else {}
+    supplied = attach_arms(records, pairs, "recent") if arms else None
+    if arms and supplied is None:
+        raise StreamError(f"{arms}: no recent candidates")
+    items = supplied if supplied is not None else demo_arms(pairs)
+
     judge = LexicalJudge()
     comparisons = paired_gain(items, judge)
     deltas = [c.delta for c in comparisons]
+    gain = sum(deltas) / len(deltas)
     low, high = bootstrap_interval(deltas)
 
     sabotaged = paired_gain(sabotage(items), judge)
@@ -154,12 +275,13 @@ def run(stream: Path, *, gap_hours: float, recent_fraction: float, anchor: int, 
         "stream": str(stream),
         "counts": split.counts(),
         "items": len(items),
-        "gain": sum(deltas) / len(deltas),
+        "gain": gain,
         "interval": [low, high],
         "excludes_zero": bool(low > 0 or high < 0),
         "sabotage_gain": sabotage_delta,
-        "sabotage_beats_real": bool(sabotage_delta >= sum(deltas) / len(deltas)),
-        "retention": "not computed: needs trained arms scored on the anchor set",
+        "sabotage_beats_real": bool(sabotage_delta >= gain),
+        "retention": retention(records, build_items(split.anchor), judge, scored=bool(arms)),
+        "anchor_note": ANCHOR_NOTE,
         "controls": controls(items, judge),
     }
 
@@ -167,7 +289,7 @@ def run(stream: Path, *, gap_hours: float, recent_fraction: float, anchor: int, 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="carry.evaluate", description=__doc__.splitlines()[0])
     parser.add_argument("--stream", required=True, type=Path, help="interaction stream JSONL")
-    parser.add_argument("--arms", type=Path, help="candidate responses JSONL keyed by item index")
+    parser.add_argument("--arms", type=Path, help="candidate responses JSONL keyed by split and item index")
     parser.add_argument("--gap-hours", type=float, default=3.0, help="episode boundary (default 3)")
     parser.add_argument("--recent-fraction", type=float, default=0.25, help="held-out tail share")
     parser.add_argument("--anchor-episodes", type=int, default=3, help="fixed old episodes")
@@ -203,7 +325,15 @@ def main(argv: Sequence[str] | None = None) -> int:
           f"{'excludes zero' if report['excludes_zero'] else 'includes zero'}")
     print(f"sabotage    {report['sabotage_gain']:+.3f}  "
           f"{'METRIC VOID: sabotage matches real' if report['sabotage_beats_real'] else 'control passed'}")
-    print(f"retention   {report['retention']}")
+    held = report["retention"]
+    if held["computed"]:
+        held_low, held_high = held["interval"]
+        verdict = "excludes zero" if held["excludes_zero"] else "includes zero"
+        print(f"retention   {held['gain']:+.3f}  95% CI [{held_low:+.3f}, {held_high:+.3f}]  "
+              f"{verdict}  ({held['items']} anchor items)")
+    else:
+        print(f"retention   not computed: {held['reason']}")
+    print(f"anchor      {report['anchor_note']}")
     for key, value in report["controls"].items():
         print(f"{key:<24}{value:.3f}")
     return 0

@@ -10,12 +10,29 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from carry.evaluate import build_items, demo_arms, run, sabotage
+from carry import generate as generate_module
+from carry.evaluate import ANCHOR_NOTE, build_items, demo_arms, load_arm_records, run, sabotage
+from carry.generate import (
+    ChatClient,
+    GenerateError,
+    build_examples,
+    build_ledger,
+    build_sabotaged_ledger,
+    generate,
+    generate_one,
+    ledger_lines,
+    messages_for,
+    parse_context,
+    write_arms,
+    write_candidates,
+)
 from carry.judge import LexicalJudge, ScriptedJudge, bootstrap_interval, paired_gain
 from carry.split import check_no_leakage, holdout
 from carry.stream import Episode, StreamError, Turn, group_episodes, iter_turns, load_stream, parse_ts
@@ -151,6 +168,283 @@ class EvaluateTests(unittest.TestCase):
         self.assertIsNone(report["warning"])
         self.assertEqual(report["items"], len(pairs))
         self.assertGreater(report["gain"], 0.0)
+
+
+# ---------------------------------------------------------------- retention
+
+
+class RetentionTests(unittest.TestCase):
+    """Retention is the comparison on the anchor set. It may not be invented."""
+
+    def setUp(self):
+        self.split = holdout(
+            group_episodes(load_stream(SAMPLE), gap=timedelta(hours=3)),
+            recent_fraction=0.25,
+            anchor_episodes=3,
+        )
+
+    def arms_file(self, tmp: str, *, anchor: bool = True, anchor_arm: str | None = None) -> Path:
+        rows = []
+        for name in ("recent", "anchor"):
+            if name == "anchor" and not anchor:
+                continue
+            for index, (_context, reference) in enumerate(build_items(getattr(self.split, name))):
+                adapted = anchor_arm if (name == "anchor" and anchor_arm is not None) else reference
+                rows.append({"split": name, "index": index, "base": "plain text", "adapted": adapted})
+        path = Path(tmp) / "arms.jsonl"
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+        return path
+
+    def test_anchor_items_are_scored_with_their_own_interval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arms = self.arms_file(tmp, anchor_arm="plain text")
+            report = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=arms)
+        held = report["retention"]
+        self.assertTrue(held["computed"])
+        self.assertEqual(held["items"], 3)
+        self.assertAlmostEqual(report["gain"], 1.0)          # recent: reference copied exactly
+        self.assertAlmostEqual(held["gain"], 0.0)            # anchor: the arms agree
+        self.assertEqual(held["interval"], [0.0, 0.0])
+        self.assertFalse(held["excludes_zero"])
+        self.assertEqual(held["note"], ANCHOR_NOTE)
+
+    def test_retention_is_reproducible(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arms = self.arms_file(tmp)
+            first = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=arms)
+            second = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=arms)
+        self.assertEqual(first["retention"], second["retention"])
+
+    def test_arms_without_anchor_rows_report_no_retention_rather_than_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arms = self.arms_file(tmp, anchor=False)
+            report = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=arms)
+        held = report["retention"]
+        self.assertFalse(held["computed"])
+        self.assertNotIn("gain", held)
+        self.assertIn("no anchor rows", held["reason"])
+
+    def test_demo_arms_refuse_retention_and_say_why(self):
+        report = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=None)
+        held = report["retention"]
+        self.assertFalse(held["computed"])
+        self.assertNotIn("gain", held)
+        self.assertEqual(report["anchor_note"], ANCHOR_NOTE)
+        self.assertIn("nothing was trained", held["reason"])
+
+    def test_partial_anchor_file_is_an_error_not_a_smaller_anchor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arms = self.arms_file(tmp)
+            rows = [json.loads(line) for line in arms.read_text().splitlines()]
+            rows = [row for row in rows if not (row["split"] == "anchor" and row["index"] == 2)]
+            arms.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            with self.assertRaises(StreamError):
+                run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=arms)
+
+    def test_arms_file_refuses_duplicates_and_unknown_splits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dup.jsonl"
+            path.write_text(
+                json.dumps({"split": "recent", "index": 0, "base": "a", "adapted": "b"}) + "\n"
+                + json.dumps({"split": "recent", "index": 0, "base": "c", "adapted": "d"}) + "\n"
+            )
+            with self.assertRaises(StreamError):
+                load_arm_records(path)
+            path = Path(tmp) / "bad.jsonl"
+            path.write_text(json.dumps({"split": "train", "index": 0, "base": "a", "adapted": "b"}) + "\n")
+            with self.assertRaises(StreamError):
+                load_arm_records(path)
+
+    def test_legacy_arms_file_without_split_still_scores_recent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "legacy.jsonl"
+            pairs = build_items(self.split.recent)
+            path.write_text("\n".join(
+                json.dumps({"index": i, "base": "plain", "adapted": ref})
+                for i, (_context, ref) in enumerate(pairs)
+            ) + "\n")
+            report = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=path)
+        self.assertEqual(report["mode"], "supplied-arms")
+        self.assertAlmostEqual(report["gain"], 1.0)
+        self.assertFalse(report["retention"]["computed"])
+
+
+# ---------------------------------------------------------------- generation
+
+
+def stub_transport(*, marker: bool = True):
+    """A transport that never touches a socket and answers deterministically."""
+    calls: list[dict] = []
+
+    def transport(url: str, payload: dict) -> dict:
+        calls.append(payload)
+        system = payload["messages"][0]["content"]
+        remembered = "What you already know" in system
+        content = f"memory={remembered} system_words={len(system.split())}"
+        return {"choices": [{"message": {"content": content}}]}
+
+    transport.calls = calls  # type: ignore[attr-defined]
+    return transport
+
+
+class GenerateTests(unittest.TestCase):
+    def setUp(self):
+        self.split = holdout(
+            group_episodes(load_stream(SAMPLE), gap=timedelta(hours=3)),
+            recent_fraction=0.25,
+            anchor_episodes=3,
+        )
+        self.ledger = build_ledger(self.split.train)
+        self.sabotaged = build_sabotaged_ledger(self.split.train, seed=0)
+        self.examples = build_examples(self.split)
+
+    def test_defaults_are_the_documented_endpoint_and_model(self):
+        client = ChatClient()
+        self.assertEqual(client.url, "http://127.0.0.1:8080/v1/chat/completions")
+        self.assertEqual(client.model, "qwen3.8-27b")
+        self.assertEqual(client.temperature, 0.0)
+
+    def test_environment_overrides_the_endpoint(self):
+        with mock.patch.dict(os.environ, {"CARRY_BASE_URL": "http://127.0.0.1:9999/v1/", "CARRY_MODEL": "gemma-4-31b"}):
+            client = ChatClient.from_env()
+        self.assertEqual(client.url, "http://127.0.0.1:9999/v1/chat/completions")
+        self.assertEqual(client.model, "gemma-4-31b")
+
+    def test_payload_is_temperature_zero_and_not_streamed(self):
+        transport = stub_transport()
+        client = ChatClient(transport=transport)
+        client.complete([{"role": "user", "content": "hi"}])
+        payload = transport.calls[0]
+        self.assertEqual(payload["temperature"], 0)
+        self.assertFalse(payload["stream"])
+        self.assertEqual(payload["model"], "qwen3.8-27b")
+
+    def test_complete_returns_exactly_the_reply_string(self):
+        client = ChatClient(transport=lambda url, payload: {"choices": [{"message": {"content": "  fine.  "}}]})
+        self.assertEqual(client.complete([{"role": "user", "content": "hi"}]), "fine.")
+
+    def test_a_response_without_content_is_an_error_not_an_empty_string(self):
+        for body in ({}, {"choices": []}, {"choices": [{"message": {}}]}, {"choices": [{"message": {"content": " "}}]}):
+            with self.subTest(body=body), self.assertRaises(GenerateError):
+                ChatClient(transport=lambda url, payload, body=body: body).complete(
+                    [{"role": "user", "content": "hi"}]
+                )
+
+    def test_every_test_runs_without_network(self):
+        transport = stub_transport()
+        with mock.patch.object(generate_module, "_post_json", side_effect=AssertionError("socket used")):
+            generate(ChatClient(transport=transport), self.examples, ledger=self.ledger, sabotaged=self.sabotaged)
+        self.assertEqual(len(transport.calls), len(self.examples) * 3)
+
+    def test_the_three_arms_differ_only_in_the_memory_block(self):
+        frozen = messages_for("frozen", self.examples[0], ledger=self.ledger, sabotaged=self.sabotaged)
+        ledger = messages_for("ledger", self.examples[0], ledger=self.ledger, sabotaged=self.sabotaged)
+        bad = messages_for("sabotaged", self.examples[0], ledger=self.ledger, sabotaged=self.sabotaged)
+        self.assertNotIn("What you already know", frozen[0]["content"])
+        self.assertIn(self.ledger, ledger[0]["content"])
+        self.assertIn(self.sabotaged, bad[0]["content"])
+        self.assertNotEqual(ledger[0]["content"], bad[0]["content"])
+        self.assertEqual(frozen[1:], ledger[1:])
+        self.assertEqual(ledger[1:], bad[1:])
+
+    def test_ledger_lines_are_verbatim_user_turns(self):
+        allowed = {
+            " ".join(turn.text.split())
+            for episode in self.split.train
+            for turn in episode.user_turns()
+        }
+        for line in ledger_lines(self.split.train):
+            self.assertIn(line, allowed)
+        for line in self.ledger.splitlines()[1:]:
+            self.assertIn(line.removeprefix("- "), allowed)
+
+    def test_sabotaged_block_is_deterministic_and_reorders_the_real_one(self):
+        again = build_sabotaged_ledger(self.split.train, seed=0)
+        self.assertEqual(self.sabotaged, again)
+        body = [line for line in self.sabotaged.splitlines()[1:]]
+        self.assertTrue(body)
+        self.assertEqual(len(body), len(self.ledger.splitlines()[1:]))
+        if len(body) > 1:
+            self.assertNotEqual(self.sabotaged, self.ledger)
+
+    def test_generation_is_reproducible_byte_for_byte(self):
+        transport = stub_transport()
+        client = ChatClient(transport=transport)
+        first = generate(client, self.examples, ledger=self.ledger, sabotaged=self.sabotaged)
+        second = generate(client, self.examples, ledger=self.ledger, sabotaged=self.sabotaged)
+        self.assertEqual([c.to_json() for c in first], [c.to_json() for c in second])
+
+    def test_written_files_round_trip_through_the_harness(self):
+        transport = stub_transport()
+        clients = generate(
+            ChatClient(transport=transport), self.examples, ledger=self.ledger, sabotaged=self.sabotaged
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "candidates.jsonl"
+            write_candidates(out, clients)
+            rows = [json.loads(line) for line in out.read_text().splitlines()]
+            self.assertEqual(len(rows), len(self.examples))
+            self.assertEqual(set(rows[0]), {"split", "index", "frozen", "ledger", "sabotaged"})
+
+            arms = write_arms(Path(tmp) / "arms", clients, adapted="ledger")
+            records = load_arm_records(arms)
+            self.assertEqual(len(records), len(self.examples))
+            self.assertEqual(records[("recent", 0)][1], clients[0].ledger)
+            self.assertEqual(records[("anchor", 0)][0], clients[-3].frozen)
+
+    def test_generated_arms_score_end_to_end(self):
+        transport = stub_transport()
+        candidates = generate(
+            ChatClient(transport=transport), self.examples, ledger=self.ledger, sabotaged=self.sabotaged
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            arms = write_arms(Path(tmp), candidates, adapted="ledger")
+            report = run(SAMPLE, gap_hours=3.0, recent_fraction=0.25, anchor=3, arms=arms)
+        self.assertEqual(report["mode"], "supplied-arms")
+        self.assertTrue(report["retention"]["computed"])
+        self.assertEqual(report["retention"]["items"], 3)
+
+    def test_a_failure_names_the_item_and_the_arm(self):
+        def transport(url: str, payload: dict) -> dict:
+            return {"choices": []}
+
+        with self.assertRaises(GenerateError) as caught:
+            generate_one(
+                ChatClient(transport=transport),
+                self.examples[0],
+                ledger=self.ledger,
+                sabotaged=self.sabotaged,
+            )
+        self.assertIn(f"{self.examples[0].split}[{self.examples[0].index}] frozen", str(caught.exception))
+
+    def test_an_empty_ledger_refuses_rather_than_making_three_identical_arms(self):
+        with self.assertRaises(GenerateError):
+            messages_for("ledger", self.examples[0], ledger="", sabotaged=self.sabotaged)
+
+    def test_context_round_trips_to_messages(self):
+        messages = parse_context("user: hello\nassistant: hi\nuser: again")
+        self.assertEqual([m["role"] for m in messages], ["user", "assistant", "user"])
+        self.assertEqual(messages[2]["content"], "again")
+        for bad in ("no role prefix", "system: nah", ""):
+            with self.subTest(bad=bad), self.assertRaises(GenerateError):
+                parse_context(bad)
+
+    def test_print_prompts_runs_the_cli_with_no_network(self):
+        with mock.patch.object(generate_module, "_post_json", side_effect=AssertionError("socket used")):
+            with tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp) / "unused.jsonl"
+                code = generate_module.main(
+                    ["--stream", str(SAMPLE), "--out", str(out), "--print-prompts"]
+                )
+                self.assertFalse(out.exists())
+        self.assertEqual(code, 0)
+
+    def test_cli_reports_a_missing_stream_as_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code = generate_module.main(
+                ["--stream", str(Path(tmp) / "nope.jsonl"), "--out", str(Path(tmp) / "o.jsonl")]
+            )
+        self.assertEqual(code, 2)
 
 
 if __name__ == "__main__":

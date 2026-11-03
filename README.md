@@ -47,7 +47,7 @@ Three layers, and only one of them is new.
 
 ## Status
 
-Early. The question is written down, the evaluation harness exists and runs, and no adapter has been trained yet. That ordering is deliberate.
+Early. The question is written down, and the evaluation harness exists and runs: it scores supplied arms on a recent held-out set and on a fixed anchor set, each with its own bootstrap interval, and refuses to print a retention number it has not measured. No adapter has been trained yet, so every gain and retention figure it can currently print is from synthetic arms and is labelled as not a result. That ordering is deliberate.
 
 ## Layout
 
