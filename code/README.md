@@ -97,6 +97,10 @@ only, and produces the three arms from one stream:
 - **sabotaged** the same block from the same sentences shuffled, so length, vocabulary
   and register are identical and only the pairing is wrong.
 
+Shuffling is the weakest form of this control: every sentence stays true, so the arm is
+still informed, merely out of order. It is a floor, and it needs a foreign-content
+control beside it before anyone claims a judge is measuring attunement.
+
 ```bash
 CARRY_BASE_URL=http://127.0.0.1:8080/v1 CARRY_MODEL=qwen3.8-27b \
   python3 -m carry.generate --stream data/sample.jsonl \

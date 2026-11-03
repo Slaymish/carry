@@ -330,6 +330,21 @@ class GenerateTests(unittest.TestCase):
                     [{"role": "user", "content": "hi"}]
                 )
 
+    def test_a_budget_spent_on_reasoning_is_diagnosed(self):
+        body = {
+            "choices": [
+                {
+                    "finish_reason": "length",
+                    "message": {"role": "assistant", "content": "", "reasoning_content": "thinking..."},
+                }
+            ]
+        }
+        with self.assertRaises(GenerateError) as caught:
+            ChatClient(transport=lambda url, payload: body).complete([{"role": "user", "content": "hi"}])
+        message = str(caught.exception)
+        self.assertIn("finish_reason=length", message)
+        self.assertIn("max_tokens", message)
+
     def test_every_test_runs_without_network(self):
         transport = stub_transport()
         with mock.patch.object(generate_module, "_post_json", side_effect=AssertionError("socket used")):

@@ -18,6 +18,12 @@ Three arms, all answering the same held-out item from their own system prompt:
               vocabulary, wrong pairing. If this scores like the ledger, the judge is
               measuring tone rather than attunement.
 
+Shuffling is the weakest useful sabotage: the sentences stay true, so a model given the
+shuffled block is still told things about the user, just in the wrong order. That is
+enough to break the pairing with the moment being answered and not enough to make the
+block false. A first live run on the sample showed exactly that, so treat this arm as a
+floor and pair it with a foreign-content control before drawing a conclusion from it.
+
 One generation path only: `ChatClient.complete` returns the reply text and nothing else,
 which is exactly what the harness scores. Output is JSONL, one row per held-out item:
 
@@ -52,6 +58,7 @@ from .stream import Episode, StreamError, group_episodes, load_stream
 DEFAULT_BASE_URL = "http://127.0.0.1:8080/v1"
 DEFAULT_MODEL = "qwen3.8-27b"
 DEFAULT_TIMEOUT = 180.0
+DEFAULT_MAX_TOKENS = 2048
 
 ARMS = ("frozen", "ledger", "sabotaged")
 WHICH = ("recent", "anchor")
@@ -78,10 +85,21 @@ def _reply_text(body: object) -> str:
     if not isinstance(choices, list) or not choices:
         raise GenerateError("response has no choices")
     first = choices[0]
-    message = first.get("message") if isinstance(first, dict) else None
+    if not isinstance(first, dict):
+        raise GenerateError("response has no message content")
+    message = first.get("message")
     content = message.get("content") if isinstance(message, dict) else None
     if not isinstance(content, str) or not content.strip():
-        raise GenerateError("response has no message content")
+        # Diagnosed rather than reported as a blank: a reasoning model that spends the
+        # whole budget thinking returns exactly this, and an empty candidate would be
+        # scored as a bad answer rather than as a broken call.
+        reason = first.get("finish_reason")
+        hint = f" (finish_reason={reason})" if reason else ""
+        if reason == "length":
+            hint += "; the token budget ran out before any reply was written"
+        if isinstance(message, dict) and message.get("reasoning_content"):
+            hint += "; the model wrote reasoning_content first, so raise max_tokens"
+        raise GenerateError(f"response has no message content{hint}")
     return content.strip()
 
 
@@ -119,7 +137,7 @@ class ChatClient:
     base_url: str = DEFAULT_BASE_URL
     model: str = DEFAULT_MODEL
     temperature: float = 0.0
-    max_tokens: int = 512
+    max_tokens: int = DEFAULT_MAX_TOKENS
     timeout: float = DEFAULT_TIMEOUT
     transport: Callable[[str, dict], dict] | None = None
 
@@ -389,6 +407,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--model", default=None, help=f"model name (default CARRY_MODEL, else {DEFAULT_MODEL})")
     parser.add_argument("--base-url", default=None, help=f"OpenAI-compatible base URL (default {DEFAULT_BASE_URL})")
     parser.add_argument("--timeout", type=float, default=None, help=f"seconds per request (default {DEFAULT_TIMEOUT})")
+    parser.add_argument("--max-tokens", type=int, default=None, help=f"reply budget (default {DEFAULT_MAX_TOKENS})")
     parser.add_argument("--gap-hours", type=float, default=3.0, help="episode boundary (default 3)")
     parser.add_argument("--recent-fraction", type=float, default=0.25, help="held-out tail share")
     parser.add_argument("--anchor-episodes", type=int, default=3, help="fixed old episodes")
@@ -406,6 +425,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         client = replace(client, base_url=args.base_url)
     if args.timeout:
         client = replace(client, timeout=args.timeout)
+    if args.max_tokens:
+        client = replace(client, max_tokens=args.max_tokens)
 
     try:
         episodes = group_episodes(load_stream(args.stream), gap=timedelta(hours=args.gap_hours))
