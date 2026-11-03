@@ -1,0 +1,192 @@
+{"ts": "2026-08-01T09:00:00Z", "role": "user", "text": "The booking page lets two people reserve the same slot at once."}
+{"ts": "2026-08-01T09:02:00Z", "role": "assistant", "text": "Then the slot needs a lock, not a warning. Check the row before writing it."}
+{"ts": "2026-08-01T09:09:00Z", "role": "user", "text": "I'll put the check in the database."}
+{"ts": "2026-08-01T09:11:00Z", "role": "assistant", "text": "Good. A constraint holds even when both people press at once."}
+{"ts": "2026-08-02T09:00:00Z", "role": "user", "text": "How many bookings did we take last week?"}
+{"ts": "2026-08-02T09:02:00Z", "role": "assistant", "text": "Thirty-one, up from twenty-four. The Friday count was the first place it showed."}
+{"ts": "2026-08-02T09:09:00Z", "role": "user", "text": "Does that include the cancelled ones?"}
+{"ts": "2026-08-02T09:11:00Z", "role": "assistant", "text": "No. Counted bookings reached a slot, so cancellations stay out."}
+{"ts": "2026-08-03T09:00:00Z", "role": "user", "text": "Somebody left the tile cutter in the wrong bay again."}
+{"ts": "2026-08-03T09:02:00Z", "role": "assistant", "text": "Put it back in the cage and mark the bay empty. The overdue list already names the member."}
+{"ts": "2026-08-03T09:09:00Z", "role": "user", "text": "Do I need to ring them?"}
+{"ts": "2026-08-03T09:11:00Z", "role": "assistant", "text": "No. A noticeboard note does it and keeps the record."}
+{"ts": "2026-08-04T09:00:00Z", "role": "user", "text": "Can we email members when a loan is due?"}
+{"ts": "2026-08-04T09:02:00Z", "role": "assistant", "text": "No email: the noticeboard is the only channel members check. Put the due date there."}
+{"ts": "2026-08-04T09:09:00Z", "role": "user", "text": "Fine, the board it is."}
+{"ts": "2026-08-04T09:11:00Z", "role": "assistant", "text": "Good. The board holds the date where people look."}
+{"ts": "2026-08-05T09:00:00Z", "role": "user", "text": "The report page takes four seconds to load."}
+{"ts": "2026-08-05T09:02:00Z", "role": "assistant", "text": "Four seconds for ninety rows is too long. Count in the query rather than in the page."}
+{"ts": "2026-08-05T09:09:00Z", "role": "user", "text": "It's a loop over loans."}
+{"ts": "2026-08-05T09:11:00Z", "role": "assistant", "text": "Then the loop is the four seconds. One query returns the count."}
+{"ts": "2026-08-06T09:00:00Z", "role": "user", "text": "What's overdue right now?"}
+{"ts": "2026-08-06T09:02:00Z", "role": "assistant", "text": "Three items, all on one member's card. That member is on the overdue list twice this month."}
+{"ts": "2026-08-06T09:09:00Z", "role": "user", "text": "Should I ring them?"}
+{"ts": "2026-08-06T09:11:00Z", "role": "assistant", "text": "A noticeboard note first. Ringing is for the third week."}
+{"ts": "2026-08-07T09:00:00Z", "role": "user", "text": "Should the cutoff move to Friday?"}
+{"ts": "2026-08-07T09:02:00Z", "role": "assistant", "text": "Keep the cutoff at Thursday 17:00. Friday is the count, and two jobs on one day collide."}
+{"ts": "2026-08-07T09:09:00Z", "role": "user", "text": "Right, so Thursday."}
+{"ts": "2026-08-07T09:11:00Z", "role": "assistant", "text": "Yes. Thursday 17:00, unchanged."}
+{"ts": "2026-08-08T09:00:00Z", "role": "user", "text": "I broke the dev database again."}
+{"ts": "2026-08-08T09:02:00Z", "role": "assistant", "text": "Restore from the seed file and write down which migration did it. The damage is an afternoon."}
+{"ts": "2026-08-08T09:09:00Z", "role": "user", "text": "Which seed file?"}
+{"ts": "2026-08-08T09:11:00Z", "role": "assistant", "text": "The one in the repo. Regenerate it from the schema rather than by hand."}
+{"ts": "2026-08-09T09:00:00Z", "role": "user", "text": "The seed file is out of date again."}
+{"ts": "2026-08-09T09:02:00Z", "role": "assistant", "text": "Regenerate it from the schema, not by hand. A hand-edited seed is a fixture that lies."}
+{"ts": "2026-08-09T09:09:00Z", "role": "user", "text": "I'll add a script for it."}
+{"ts": "2026-08-09T09:11:00Z", "role": "assistant", "text": "One script, run from the repo root. Then nobody edits it by hand."}
+{"ts": "2026-08-10T09:00:00Z", "role": "user", "text": "How do I add a bay to the cage?"}
+{"ts": "2026-08-10T09:02:00Z", "role": "assistant", "text": "One row in the bay table, then reload. The cage view reads rows, not a list in the code."}
+{"ts": "2026-08-10T09:09:00Z", "role": "user", "text": "Even for the shelf bays?"}
+{"ts": "2026-08-10T09:11:00Z", "role": "assistant", "text": "Even then. Nine bays are nine rows."}
+{"ts": "2026-08-11T09:00:00Z", "role": "user", "text": "I want the overdue list to show days late."}
+{"ts": "2026-08-11T09:02:00Z", "role": "assistant", "text": "Put days late in the first column as a number. Then the sort is obvious."}
+{"ts": "2026-08-11T09:09:00Z", "role": "user", "text": "And the member name second."}
+{"ts": "2026-08-11T09:11:00Z", "role": "assistant", "text": "Days late, then the member, then the item. Three columns is enough."}
+{"ts": "2026-08-12T09:00:00Z", "role": "user", "text": "The Friday count keeps coming out different."}
+{"ts": "2026-08-12T09:02:00Z", "role": "assistant", "text": "Count items, not loans. Two volunteers counting the same shelf should agree."}
+{"ts": "2026-08-12T09:09:00Z", "role": "user", "text": "So the count is per shelf."}
+{"ts": "2026-08-12T09:11:00Z", "role": "assistant", "text": "Per shelf, then summed. The total is the number the report shows."}
+{"ts": "2026-08-13T09:00:00Z", "role": "user", "text": "Should I add a queue for the reminders?"}
+{"ts": "2026-08-13T09:02:00Z", "role": "assistant", "text": "No queue yet. The noticeboard is a table and a table is enough for ninety rows."}
+{"ts": "2026-08-13T09:09:00Z", "role": "user", "text": "What about the weekly digest?"}
+{"ts": "2026-08-13T09:11:00Z", "role": "assistant", "text": "The digest is one query over the board. Nothing here needs a worker."}
+{"ts": "2026-08-14T09:00:00Z", "role": "user", "text": "The login page hangs on the second attempt."}
+{"ts": "2026-08-14T09:02:00Z", "role": "assistant", "text": "Second attempt, first attempt fine? Then it is the redirect after the session cookie, not the login."}
+{"ts": "2026-08-14T09:09:00Z", "role": "user", "text": "The cookie is set twice."}
+{"ts": "2026-08-14T09:11:00Z", "role": "assistant", "text": "Then the second write is the hang. Set it once and redirect after."}
+{"ts": "2026-08-15T09:00:00Z", "role": "user", "text": "A member wants a refund on their deposit."}
+{"ts": "2026-08-15T09:02:00Z", "role": "assistant", "text": "Two pounds, one row. Refund it and put the reason on the card."}
+{"ts": "2026-08-15T09:09:00Z", "role": "user", "text": "The reason is a broken handle."}
+{"ts": "2026-08-15T09:11:00Z", "role": "assistant", "text": "Then write that on the card. The refund row should say the same."}
+{"ts": "2026-08-16T09:00:00Z", "role": "user", "text": "How many volunteers worked last month?"}
+{"ts": "2026-08-16T09:02:00Z", "role": "assistant", "text": "Eleven, of whom four worked one shift only. The count is per person, not per shift."}
+{"ts": "2026-08-16T09:09:00Z", "role": "user", "text": "Does the rota count the same way?"}
+{"ts": "2026-08-16T09:11:00Z", "role": "assistant", "text": "The rota counts shifts. The report counts people, so the two will not match."}
+{"ts": "2026-08-17T09:00:00Z", "role": "user", "text": "The van is double booked for Saturday."}
+{"ts": "2026-08-17T09:02:00Z", "role": "assistant", "text": "One of the two needs moving, and the earlier booking keeps it. Ask the newer one to take Sunday."}
+{"ts": "2026-08-17T09:09:00Z", "role": "user", "text": "They'll be annoyed."}
+{"ts": "2026-08-17T09:11:00Z", "role": "assistant", "text": "Probably. A clear offer on Sunday is better than a muddle on Saturday."}
+{"ts": "2026-08-18T09:00:00Z", "role": "user", "text": "Someone returned a ladder with a bent rung."}
+{"ts": "2026-08-18T09:02:00Z", "role": "assistant", "text": "Mark it out of service in the cage and add it to the repair list. Do not put it back on the shelf."}
+{"ts": "2026-08-18T09:09:00Z", "role": "user", "text": "Out of service where?"}
+{"ts": "2026-08-18T09:11:00Z", "role": "assistant", "text": "The state column on the bay row. The grid shows it in red."}
+{"ts": "2026-08-19T09:00:00Z", "role": "user", "text": "I want a page showing the whole cage at once."}
+{"ts": "2026-08-19T09:02:00Z", "role": "assistant", "text": "A grid of bays, one cell each, with the item name and the state. Nine bays fit on a phone."}
+{"ts": "2026-08-19T09:09:00Z", "role": "user", "text": "With the count underneath."}
+{"ts": "2026-08-19T09:11:00Z", "role": "assistant", "text": "Count underneath the grid, one line. The grid is for finding, the count is for checking."}
+{"ts": "2026-08-20T09:00:00Z", "role": "user", "text": "The report says we have forty-one hammers."}
+{"ts": "2026-08-20T09:02:00Z", "role": "assistant", "text": "Then the count is wrong, because there are twelve. Something is counting loans as items."}
+{"ts": "2026-08-20T09:09:00Z", "role": "user", "text": "It joins on the item table twice."}
+{"ts": "2026-08-20T09:11:00Z", "role": "assistant", "text": "Then the join doubles the rows. Count distinct items and the twelve comes back."}
+{"ts": "2026-08-21T09:00:00Z", "role": "user", "text": "Should the noticeboard be public?"}
+{"ts": "2026-08-21T09:02:00Z", "role": "assistant", "text": "No. Members only, because the notes name people and what they borrowed."}
+{"ts": "2026-08-21T09:09:00Z", "role": "user", "text": "So login required."}
+{"ts": "2026-08-21T09:11:00Z", "role": "assistant", "text": "Login required, and no notes on the public page at all."}
+{"ts": "2026-08-22T09:00:00Z", "role": "user", "text": "The keys to the cage went missing."}
+{"ts": "2026-08-22T09:02:00Z", "role": "assistant", "text": "Change the padlock today and cut two keys. The register has the last three holders."}
+{"ts": "2026-08-22T09:09:00Z", "role": "user", "text": "Should I ask them first?"}
+{"ts": "2026-08-22T09:11:00Z", "role": "assistant", "text": "Ask after the padlock is changed. A missing key is not a conversation first."}
+{"ts": "2026-08-23T09:00:00Z", "role": "user", "text": "The app is slow on the phone in the shed."}
+{"ts": "2026-08-23T09:02:00Z", "role": "assistant", "text": "That is the signal, not the page. Cache the cage list so it opens without a request."}
+{"ts": "2026-08-23T09:09:00Z", "role": "user", "text": "It's one bar, sometimes none."}
+{"ts": "2026-08-23T09:11:00Z", "role": "assistant", "text": "Then cache the list and the grid. A cached page opens in the shed."}
+{"ts": "2026-08-24T09:00:00Z", "role": "user", "text": "I'm rewriting the whole backend."}
+{"ts": "2026-08-24T09:02:00Z", "role": "assistant", "text": "Do not. The pages work and the tests are thin, so rewrite one page at a time."}
+{"ts": "2026-08-24T09:09:00Z", "role": "user", "text": "The data layer is a mess though."}
+{"ts": "2026-08-24T09:11:00Z", "role": "assistant", "text": "Rewrite the data layer behind one page, then move the next page onto it."}
+{"ts": "2026-08-25T09:00:00Z", "role": "user", "text": "How do I test the booking lock?"}
+{"ts": "2026-08-25T09:02:00Z", "role": "assistant", "text": "Two threads, one slot, both writing. The test passes when exactly one row exists."}
+{"ts": "2026-08-25T09:09:00Z", "role": "user", "text": "Python threads are slow."}
+{"ts": "2026-08-25T09:11:00Z", "role": "assistant", "text": "Slow is fine for a lock test. Two threads and one row is the whole assertion."}
+{"ts": "2026-08-26T09:00:00Z", "role": "user", "text": "A member borrowed six items at once."}
+{"ts": "2026-08-26T09:02:00Z", "role": "assistant", "text": "Six is over the limit of four. Put the extra two back and note it on the card."}
+{"ts": "2026-08-26T09:09:00Z", "role": "user", "text": "They're a long-standing member."}
+{"ts": "2026-08-26T09:11:00Z", "role": "assistant", "text": "Then note it and keep the limit. The limit is why the count holds."}
+{"ts": "2026-08-27T09:00:00Z", "role": "user", "text": "Do we need a privacy page?"}
+{"ts": "2026-08-27T09:02:00Z", "role": "assistant", "text": "Yes, one page naming what is stored and for how long. Members ask for it and it is four paragraphs."}
+{"ts": "2026-08-27T09:09:00Z", "role": "user", "text": "Do we need a policy PDF?"}
+{"ts": "2026-08-27T09:11:00Z", "role": "assistant", "text": "No PDF. The page is the policy and it stays on the site."}
+{"ts": "2026-08-28T09:00:00Z", "role": "user", "text": "The donation totals do not add up."}
+{"ts": "2026-08-28T09:02:00Z", "role": "assistant", "text": "Then one row has a currency field missing. Sum by currency before you sum by anything else."}
+{"ts": "2026-08-28T09:09:00Z", "role": "user", "text": "Two currencies, I think."}
+{"ts": "2026-08-28T09:11:00Z", "role": "assistant", "text": "Then two totals, never one. One total is the bug."}
+{"ts": "2026-08-29T09:00:00Z", "role": "user", "text": "Can I delete the old loans?"}
+{"ts": "2026-08-29T09:02:00Z", "role": "assistant", "text": "Archive them, do not delete. The overdue list reads history and the counts read history."}
+{"ts": "2026-08-29T09:09:00Z", "role": "user", "text": "Even the ones from last year?"}
+{"ts": "2026-08-29T09:11:00Z", "role": "assistant", "text": "Especially those. An archived loan is what makes the count checkable."}
+{"ts": "2026-08-30T09:00:00Z", "role": "user", "text": "The label printer is jammed again."}
+{"ts": "2026-08-30T09:02:00Z", "role": "assistant", "text": "Third time this month, so the rollers are worn. Order a new one and label by hand until it comes."}
+{"ts": "2026-08-30T09:09:00Z", "role": "user", "text": "Labels by hand for a week."}
+{"ts": "2026-08-30T09:11:00Z", "role": "assistant", "text": "A week of labels by hand, or a month of jams. Take the week."}
+{"ts": "2026-08-31T09:00:00Z", "role": "user", "text": "I want a weekly summary in the app."}
+{"ts": "2026-08-31T09:02:00Z", "role": "assistant", "text": "One page, five numbers: bookings, returns, overdue, repairs, volunteers. Anything more is not read."}
+{"ts": "2026-08-31T09:09:00Z", "role": "user", "text": "Five is enough?"}
+{"ts": "2026-08-31T09:11:00Z", "role": "assistant", "text": "Five is enough. The Friday count is the first of them."}
+{"ts": "2026-09-01T09:00:00Z", "role": "user", "text": "Should I move the database to the server?"}
+{"ts": "2026-09-01T09:02:00Z", "role": "assistant", "text": "Yes, but export first and keep the export for a week. A move with no copy is a gamble."}
+{"ts": "2026-09-01T09:09:00Z", "role": "user", "text": "The dev copy is stale."}
+{"ts": "2026-09-01T09:11:00Z", "role": "assistant", "text": "Then export from the live copy, not the dev one. A stale export is worse than none."}
+{"ts": "2026-09-02T09:00:00Z", "role": "user", "text": "The shed roof leaks over bay 7."}
+{"ts": "2026-09-02T09:02:00Z", "role": "assistant", "text": "Move bay 7 to bay 9 and put a bucket under the leak. The repair list needs a date, not a note."}
+{"ts": "2026-09-02T09:09:00Z", "role": "user", "text": "The roofer comes on the 12th."}
+{"ts": "2026-09-02T09:11:00Z", "role": "assistant", "text": "Then bay 7 stays empty until the 12th. Put the date on the repair row."}
+{"ts": "2026-09-03T09:00:00Z", "role": "user", "text": "The open evening is on the 21st."}
+{"ts": "2026-09-03T09:02:00Z", "role": "assistant", "text": "Then the cutoff for that week moves to Wednesday 17:00. Everything else stays on Thursday."}
+{"ts": "2026-09-03T09:09:00Z", "role": "user", "text": "And the count?"}
+{"ts": "2026-09-03T09:11:00Z", "role": "assistant", "text": "The Friday count stays on Friday. Only the cutoff moves."}
+{"ts": "2026-09-04T09:00:00Z", "role": "user", "text": "Someone booked a slot for a tool we don't have."}
+{"ts": "2026-09-04T09:02:00Z", "role": "assistant", "text": "The slot list is out of step with the cage. Rebuild it from the cage rows."}
+{"ts": "2026-09-04T09:09:00Z", "role": "user", "text": "It has a saw that went missing in June."}
+{"ts": "2026-09-04T09:11:00Z", "role": "assistant", "text": "Then the rebuild removes it. The cage is the list of what exists."}
+{"ts": "2026-09-05T09:00:00Z", "role": "user", "text": "I keep forgetting which bay the sander is in."}
+{"ts": "2026-09-05T09:02:00Z", "role": "assistant", "text": "Bay 3. The cage grid answers it faster than the search box does."}
+{"ts": "2026-09-05T09:09:00Z", "role": "user", "text": "I'd rather have the number in the first sentence and the reason after it."}
+{"ts": "2026-09-05T09:11:00Z", "role": "assistant", "text": "Understood. Number first, then the reason, in that order."}
+{"ts": "2026-09-06T09:00:00Z", "role": "user", "text": "And don't call it a storage room, it's the cage."}
+{"ts": "2026-09-06T09:02:00Z", "role": "assistant", "text": "The cage. I will use the name the members use."}
+{"ts": "2026-09-06T09:09:00Z", "role": "user", "text": "The Friday count is the only number I trust, so lead with it."}
+{"ts": "2026-09-06T09:11:00Z", "role": "assistant", "text": "Then the count leads, and the rest of the sentence supports it."}
+{"ts": "2026-09-07T09:00:00Z", "role": "user", "text": "We never email members, the noticeboard is it."}
+{"ts": "2026-09-07T09:02:00Z", "role": "assistant", "text": "The noticeboard only. No email, no text, no letter."}
+{"ts": "2026-09-07T09:09:00Z", "role": "user", "text": "I prefer two sentences; the third one is usually padding."}
+{"ts": "2026-09-07T09:11:00Z", "role": "assistant", "text": "Two sentences, then. The count and the list fit in two."}
+{"ts": "2026-09-08T09:00:00Z", "role": "user", "text": "How many items are out right now?"}
+{"ts": "2026-09-08T09:02:00Z", "role": "assistant", "text": "Forty-two items are out and three are overdue. The overdue list is the one to work from."}
+{"ts": "2026-09-08T09:09:00Z", "role": "user", "text": "And how many came back today?"}
+{"ts": "2026-09-08T09:11:00Z", "role": "assistant", "text": "Nine came back, all before the cutoff. Nothing late."}
+{"ts": "2026-09-09T09:00:00Z", "role": "user", "text": "A member wants to book the tile cutter for Sunday."}
+{"ts": "2026-09-09T09:02:00Z", "role": "assistant", "text": "Sunday is free in the cage and the slot is open. Book it and the Friday count picks it up."}
+{"ts": "2026-09-09T09:09:00Z", "role": "user", "text": "They also want the van."}
+{"ts": "2026-09-09T09:11:00Z", "role": "assistant", "text": "The van is out until Saturday. Offer Sunday afternoon and keep it to one slot."}
+{"ts": "2026-09-10T09:00:00Z", "role": "user", "text": "The Friday count came out at ninety-four."}
+{"ts": "2026-09-10T09:02:00Z", "role": "assistant", "text": "Ninety-four is four short of the register. Check bay 6 first, the sander is usually the one missing."}
+{"ts": "2026-09-10T09:09:00Z", "role": "user", "text": "Bay 6 was empty."}
+{"ts": "2026-09-10T09:11:00Z", "role": "assistant", "text": "Then the sander is out without a loan row. Add the loan and the count returns to ninety-eight."}
+{"ts": "2026-09-11T09:00:00Z", "role": "user", "text": "Should I email the volunteers about the roof repair?"}
+{"ts": "2026-09-11T09:02:00Z", "role": "assistant", "text": "No email. A noticeboard note names the day and the bay, and volunteers read the board."}
+{"ts": "2026-09-11T09:09:00Z", "role": "user", "text": "Even for the closure?"}
+{"ts": "2026-09-11T09:11:00Z", "role": "assistant", "text": "Even then. The board is the record and the note stays up for the week."}
+{"ts": "2026-09-12T09:00:00Z", "role": "user", "text": "How long is the wait for the ladder?"}
+{"ts": "2026-09-12T09:02:00Z", "role": "assistant", "text": "The ladder is out until Thursday and two members are queued. The cutoff on Thursday decides who gets it."}
+{"ts": "2026-09-12T09:09:00Z", "role": "user", "text": "Can they collect Saturday instead?"}
+{"ts": "2026-09-12T09:11:00Z", "role": "assistant", "text": "Saturday is past the cutoff, so it goes to the queue. Offer Sunday morning."}
+{"ts": "2026-09-13T09:00:00Z", "role": "user", "text": "The overdue list has one member on it four times."}
+{"ts": "2026-09-13T09:02:00Z", "role": "assistant", "text": "Four loans late is a pattern, not an accident. Put the card on hold until two come back."}
+{"ts": "2026-09-13T09:09:00Z", "role": "user", "text": "Should I ring them?"}
+{"ts": "2026-09-13T09:11:00Z", "role": "assistant", "text": "Yes, after the noticeboard note. Four is past the point where a note is enough."}
+{"ts": "2026-09-14T09:00:00Z", "role": "user", "text": "I want the cage grid on the shelf tablet."}
+{"ts": "2026-09-14T09:02:00Z", "role": "assistant", "text": "The grid fits nine bays on one screen. Cache it so it opens when the signal drops in the shed."}
+{"ts": "2026-09-14T09:09:00Z", "role": "user", "text": "It still needs the count."}
+{"ts": "2026-09-14T09:11:00Z", "role": "assistant", "text": "Then show the count under the grid. The Friday count is the number people ask for."}
+{"ts": "2026-09-15T09:00:00Z", "role": "user", "text": "A deposit refund is wrong by three pounds."}
+{"ts": "2026-09-15T09:02:00Z", "role": "assistant", "text": "Three pounds is one loan at the wrong rate. Fix the row and the total corrects itself."}
+{"ts": "2026-09-15T09:09:00Z", "role": "user", "text": "Which rate?"}
+{"ts": "2026-09-15T09:11:00Z", "role": "assistant", "text": "The standard one. The discounted rate is for members under eighteen only."}
+{"ts": "2026-09-16T09:00:00Z", "role": "user", "text": "The 21st is the open evening."}
+{"ts": "2026-09-16T09:02:00Z", "role": "assistant", "text": "Then the cutoff that week is Wednesday 17:00. Everything else stays on Thursday."}
+{"ts": "2026-09-16T09:09:00Z", "role": "user", "text": "Do we close early?"}
+{"ts": "2026-09-16T09:11:00Z", "role": "assistant", "text": "Close at 16:00 so the board note goes up before the cutoff."}
+{"ts": "2026-09-17T09:00:00Z", "role": "user", "text": "What should I do first this morning?"}
+{"ts": "2026-09-17T09:02:00Z", "role": "assistant", "text": "Three overdue items and one broken ladder. The ladder is the only one that stops a booking."}
+{"ts": "2026-09-17T09:09:00Z", "role": "user", "text": "And the count?"}
+{"ts": "2026-09-17T09:11:00Z", "role": "assistant", "text": "The Friday count is Friday. Today it is the overdue list and the ladder."}

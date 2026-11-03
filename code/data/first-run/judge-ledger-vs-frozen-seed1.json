@@ -1,0 +1,56 @@
+{
+  "mode": "supplied-arms",
+  "warning": null,
+  "judge": "model:gemma-4-31b",
+  "stream": "data/fixture-tool-library.jsonl",
+  "counts": {
+    "train_episodes": 30,
+    "recent_episodes": 10,
+    "anchor_episodes": 8,
+    "train_turns": 120,
+    "recent_turns": 40,
+    "anchor_turns": 32
+  },
+  "items": 10,
+  "gain": -0.1,
+  "interval": [
+    -0.6,
+    0.4
+  ],
+  "excludes_zero": false,
+  "sabotage_gain": -1.0,
+  "sabotage_beats_real": false,
+  "length_matched": {
+    "computed": true,
+    "items": 7,
+    "gain": -0.14285714285714285,
+    "interval": [
+      -0.7142857142857143,
+      0.42857142857142855
+    ],
+    "excludes_zero": false
+  },
+  "wins": {
+    "adapted": 3,
+    "tied": 3,
+    "base": 4
+  },
+  "retention": {
+    "computed": true,
+    "items": 8,
+    "gain": 0.75,
+    "interval": [
+      0.25,
+      1.0
+    ],
+    "excludes_zero": true,
+    "note": "an anchor is only meaningful once something is actually trained"
+  },
+  "anchor_note": "an anchor is only meaningful once something is actually trained",
+  "controls": {
+    "base_agreement_rate": 0.4,
+    "adapted_agreement_rate": 0.0,
+    "base_mean_words": 19.4,
+    "adapted_mean_words": 15.3
+  }
+}

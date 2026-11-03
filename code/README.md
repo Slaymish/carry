@@ -41,6 +41,7 @@ working harness for a working method.
 | `judge.py` | the judge protocol, a lexical floor, paired comparison, bootstrap |
 | `evaluate.py` | the CLI, the controls, the sabotage gate, and retention |
 | `generate.py` | candidate generation for three arms over an OpenAI-compatible endpoint |
+| `judge.py` (model) | a pairwise judge from another model family, blind to the arm |
 
 ## The stream schema
 
@@ -69,10 +70,29 @@ python3 -m carry.evaluate --stream my-stream.jsonl --arms arms.jsonl
 ```
 
 `split` defaults to `recent`, so a file written before anchors were scored still loads.
+`generate.py` also writes `ledger-vs-sabotaged.jsonl`: the sabotage gate as a paired
+interval between the two prompt arms, with the reference held fixed.
 The `base` arm is normally the frozen model, the `adapted` arm the model with the
 adapter, or with the ledger prompt. Both are scored against the same reference on the
 same context, so the mean of per-item differences is a paired quantity and the interval
 means something.
+
+### The model judge
+
+The lexical judge measures overlap. A claim about attunement needs a judge that can read,
+so `--judge model` swaps in a pairwise judge from another model family:
+
+```bash
+python3 -m carry.evaluate --stream data/fixture-tool-library.jsonl --anchor-episodes 8 \
+  --arms data/first-run/arms/ledger-vs-frozen.jsonl --judge model --judge-model gemma-4-31b
+```
+
+Two candidates, labelled A and B in an order drawn per item from `random.Random(seed)`
+(`--judge-seed`), never named, asked which is closer to the reply that actually happened.
+A reply that is not exactly one of A, B or TIE raises rather than defaulting to a tie,
+because a default would turn a broken judge into a result. The judge client runs at
+temperature 0 with the reasoning step off; that is a stated choice, since a judge that
+thinks first writes the same labels more slowly.
 
 ### Retention
 
@@ -130,7 +150,10 @@ says would end the project if it matches an adapted model.
 
 ## Data
 
-`data/sample.jsonl` is synthetic, written for this repository. The real corpus never
+`data/fixture-tool-library.jsonl` is the first real fixture: 48 synthetic episodes from
+`data/make_fixture.py`, split 30 / 10 / 8, with the model output it produced committed
+under `data/first-run/` so the scores in `../docs/04-first-number.md` can be recomputed
+without a model. `data/sample.jsonl` is synthetic, written for this repository. The real corpus never
 enters the repo: see the data rules in `../AGENTS.md`. Five held-out items is enough to
 prove the plumbing and nowhere near enough to prove a method, which is why the sample is
 labelled demo rather than fixture.

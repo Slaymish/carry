@@ -18,7 +18,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from carry import generate as generate_module
-from carry.evaluate import ANCHOR_NOTE, build_items, demo_arms, load_arm_records, run, sabotage
+from carry.evaluate import (
+    ANCHOR_NOTE,
+    build_items,
+    compare_items,
+    demo_arms,
+    length_matched,
+    load_arm_records,
+    run,
+    sabotage,
+)
 from carry.generate import (
     ChatClient,
     GenerateError,
@@ -32,8 +41,18 @@ from carry.generate import (
     parse_context,
     write_arms,
     write_candidates,
+    write_pair,
 )
-from carry.judge import LexicalJudge, ScriptedJudge, bootstrap_interval, paired_gain
+from carry.judge import (
+    JudgeError,
+    LexicalJudge,
+    ModelJudge,
+    ScriptedJudge,
+    bootstrap_interval,
+    paired_gain,
+    paired_preferences,
+    parse_preference,
+)
 from carry.split import check_no_leakage, holdout
 from carry.stream import Episode, StreamError, Turn, group_episodes, iter_turns, load_stream, parse_ts
 
@@ -319,6 +338,15 @@ class GenerateTests(unittest.TestCase):
         self.assertFalse(payload["stream"])
         self.assertEqual(payload["model"], "qwen3.8-27b")
 
+    def test_thinking_is_a_payload_flag_and_defaults_on(self):
+        transport = stub_transport()
+        ChatClient(transport=transport).complete([{"role": "user", "content": "hi"}])
+        self.assertNotIn("chat_template_kwargs", transport.calls[0])
+        off = stub_transport()
+        ChatClient(transport=off, enable_thinking=False).complete([{"role": "user", "content": "hi"}])
+        self.assertEqual(off.calls[0]["chat_template_kwargs"], {"enable_thinking": False})
+        self.assertEqual(off.calls[0]["temperature"], 0)
+
     def test_complete_returns_exactly_the_reply_string(self):
         client = ChatClient(transport=lambda url, payload: {"choices": [{"message": {"content": "  fine.  "}}]})
         self.assertEqual(client.complete([{"role": "user", "content": "hi"}]), "fine.")
@@ -460,6 +488,166 @@ class GenerateTests(unittest.TestCase):
                 ["--stream", str(Path(tmp) / "nope.jsonl"), "--out", str(Path(tmp) / "o.jsonl")]
             )
         self.assertEqual(code, 2)
+
+
+# ---------------------------------------------------------------- the model judge
+
+
+class ScriptedPairwise:
+    """A pairwise judge with no model in it: prefers whichever text is longer."""
+
+    name = "scripted-pairwise"
+    pairwise = True
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, str]] = []
+
+    def prefer(self, context: str, reference: str, first: str, second: str) -> float:
+        self.asked.append((first, second))
+        if len(first.split()) == len(second.split()):
+            return 0.5
+        return 1.0 if len(first.split()) > len(second.split()) else 0.0
+
+
+class LengthControlTests(unittest.TestCase):
+    def test_only_items_where_the_adapted_reply_is_not_longer_are_kept(self):
+        items = [
+            ("ctx", "ref", "one two three", "one two"),          # shorter: kept
+            ("ctx", "ref", "one", "one two three four five"),    # longer: dropped
+            ("ctx", "ref", "one two", "one two"),                # equal: kept
+            ("ctx", "ref", "one two three", "one"),              # shorter: kept
+        ]
+        matched = length_matched(items, [0.5, 0.9, 0.1, 0.3])
+        self.assertTrue(matched["computed"])
+        self.assertEqual(matched["items"], 3)
+        self.assertAlmostEqual(matched["gain"], 0.3)
+
+    def test_a_subset_too_small_to_say_anything_is_refused(self):
+        matched = length_matched([("ctx", "ref", "a b c", "a")], [0.4])
+        self.assertFalse(matched["computed"])
+        self.assertNotIn("gain", matched)
+
+
+class ModelJudgeTests(unittest.TestCase):
+    def test_preference_parsing_is_strict(self):
+        self.assertEqual(parse_preference("A"), 1.0)
+        self.assertEqual(parse_preference(" b."), 0.0)
+        self.assertEqual(parse_preference("Tie"), 0.5)
+        for bad in ("", "both", "A or B", "candidate one"):
+            with self.subTest(bad=bad), self.assertRaises(JudgeError):
+                parse_preference(bad)
+
+    def test_the_judge_prompt_never_names_an_arm(self):
+        judge = ModelJudge(complete=lambda messages: "A")
+        messages = judge.prompt("user: hi", "the reference", "first reply", "second reply")
+        text = " ".join(message["content"] for message in messages).lower()
+        for arm in ("frozen", "ledger", "sabotaged", "base", "adapted"):
+            self.assertNotIn(arm, text)
+        self.assertIn("first reply", text)
+        self.assertIn("second reply", text)
+
+    def test_a_shuffled_order_is_deterministic_given_a_seed(self):
+        items = [("ctx", "ref", f"base {i}", f"adapted {i}") for i in range(12)]
+        first = [c.order for c in paired_preferences(items, ScriptedPairwise(), seed=3)]
+        second = [c.order for c in paired_preferences(items, ScriptedPairwise(), seed=3)]
+        self.assertEqual(first, second)
+        self.assertEqual(set(first), {"base-first", "adapted-first"})
+
+    def test_order_does_not_decide_the_winner(self):
+        # A judge that always picks the first candidate must give a zero mean: the
+        # shuffle turns a position preference into noise rather than into a gain.
+        class AlwaysFirst(ScriptedPairwise):
+            def prefer(self, context, reference, first, second):
+                return 1.0
+
+        items = [("ctx", "ref", f"base {i}", f"adapted {i}") for i in range(20)]
+        results = paired_preferences(items, AlwaysFirst(), seed=1)
+        # Every delta is decided by the position the shuffle gave the base arm, and by
+        # nothing about the arm itself.
+        for comparison in results:
+            expected = -1.0 if comparison.order == "base-first" else 1.0
+            self.assertEqual(comparison.delta, expected)
+        first = sum(1 for c in results if c.order == "base-first")
+        self.assertGreater(first, 0)
+        self.assertLess(first, len(results))
+        self.assertEqual(sum(c.delta for c in results), (len(results) - first) - first)
+
+    def test_both_orderings_map_the_winner_to_the_right_arm(self):
+        class PreferAdapted(ScriptedPairwise):
+            def prefer(self, context, reference, first, second):
+                return 1.0 if first.startswith("adapted") else 0.0
+
+        items = [("ctx", "ref", f"base {i}", f"adapted {i}") for i in range(10)]
+        for comparison in paired_preferences(items, PreferAdapted(), seed=5):
+            self.assertEqual(comparison.delta, 1.0, comparison)
+
+    def test_compare_items_dispatches_on_the_judge_kind(self):
+        items = [("ctx", "ref", "one two", "one two three")]
+        pairwise = [c.delta for c in compare_items(items, ScriptedPairwise())]
+        scored = [c.delta for c in compare_items(items, ScriptedJudge({"one two": 0.0, "one two three": 1.0}))]
+        self.assertEqual(pairwise, [1.0])
+        self.assertEqual(scored, [1.0])
+
+    def test_the_harness_scores_a_pairwise_judge_end_to_end(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            split = holdout(
+                group_episodes(load_stream(SAMPLE), gap=timedelta(hours=3)),
+                recent_fraction=0.25,
+                anchor_episodes=3,
+            )
+            rows = []
+            for name in ("recent", "anchor"):
+                for index, (_context, reference) in enumerate(build_items(getattr(split, name))):
+                    rows.append(
+                        {"split": name, "index": index, "base": "short", "adapted": reference}
+                    )
+            arms = Path(tmp) / "arms.jsonl"
+            arms.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            report = run(
+                SAMPLE,
+                gap_hours=3.0,
+                recent_fraction=0.25,
+                anchor=3,
+                arms=arms,
+                judge=ScriptedPairwise(),
+                judge_seed=4,
+            )
+            again = run(
+                SAMPLE,
+                gap_hours=3.0,
+                recent_fraction=0.25,
+                anchor=3,
+                arms=arms,
+                judge=ScriptedPairwise(),
+                judge_seed=4,
+            )
+        self.assertEqual(report["judge"], "scripted-pairwise")
+        self.assertEqual(report["gain"], again["gain"])
+        self.assertEqual(report["interval"], again["interval"])
+        self.assertEqual(report["wins"], again["wins"])
+        self.assertTrue(report["retention"]["computed"])
+        self.assertEqual(sum(report["wins"].values()), report["items"])
+        self.assertGreater(report["gain"], 0.0)
+
+    def test_write_pair_covers_any_two_arms(self):
+        transport = stub_transport()
+        split = holdout(
+            group_episodes(load_stream(SAMPLE), gap=timedelta(hours=3)),
+            recent_fraction=0.25,
+            anchor_episodes=3,
+        )
+        candidates = generate(
+            ChatClient(transport=transport),
+            build_examples(split),
+            ledger=build_ledger(split.train),
+            sabotaged=build_sabotaged_ledger(split.train, seed=0),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_pair(Path(tmp), candidates, base_arm="sabotaged", adapted_arm="ledger")
+            self.assertEqual(path.name, "ledger-vs-sabotaged.jsonl")
+            records = load_arm_records(path)
+        self.assertEqual(records[("recent", 0)][1], candidates[0].ledger)
+        self.assertEqual(records[("recent", 0)][0], candidates[0].sabotaged)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ import math
 import random
 import re
 from dataclasses import dataclass
-from typing import Callable, Iterable, Protocol, Sequence
+from typing import Callable, ClassVar, Iterable, Protocol, Sequence
 
 WORD = re.compile(r"[a-z0-9']+")
 
@@ -81,6 +81,7 @@ class Comparison:
     index: int
     base: float
     adapted: float
+    order: str = "base-first"
 
     @property
     def delta(self) -> float:
@@ -141,3 +142,106 @@ def bootstrap_interval(
     low = means[max(0, math.floor(tail * rounds) - 1)]
     high = means[min(rounds - 1, math.ceil((1 - tail) * rounds) - 1)]
     return low, high
+
+
+# ---------------------------------------------------------------- a judge that is a model
+
+
+JUDGE_SYSTEM = (
+    "You compare two drafted replies for the same conversation. Reply with one word only."
+)
+
+JUDGE_TEMPLATE = """\
+The conversation, with the reply being drafted removed:
+
+{context}
+
+The reply the assistant actually sent at that point:
+
+{reference}
+
+Candidate A:
+{first}
+
+Candidate B:
+{second}
+
+Which candidate is closer to the reply that actually happened: same content, same
+manner, same length? Answer A, B, or TIE. One word."""
+
+
+class JudgeError(RuntimeError):
+    """The judge did not produce a preference. Reported, never defaulted to a tie."""
+
+
+def parse_preference(reply: str) -> float:
+    """'A' -> 1.0 (the first candidate won), 'TIE' -> 0.5, 'B' -> 0.0.
+
+    Reads the whole reply for one of the three tokens and refuses anything ambiguous:
+    a default would quietly turn a broken judge into a tie, and a tie is a result.
+    """
+    words = re.findall(r"[A-Za-z]+", reply.upper())
+    found = {word for word in words if word in ("A", "B", "TIE")}
+    if len(found) != 1:
+        raise JudgeError(f"expected one of A, B, TIE; got {reply[:120]!r}")
+    (only,) = found
+    return {"A": 1.0, "B": 0.0, "TIE": 0.5}[only]
+
+
+@dataclass(frozen=True, slots=True)
+class ModelJudge:
+    """A pairwise judge from another model family, blind to the arm.
+
+    `complete` is a chat function taking messages and returning text, so this module
+    never imports the HTTP client and never opens a socket of its own. The two
+    candidates are presented as A and B in an order the caller shuffles per item; no
+    arm name is in the prompt, so the judge cannot know which is which even by
+    accident. Temperature 0 on the client, so a re-run asks the same question.
+    """
+
+    complete: Callable[[Sequence[dict]], str]
+    name: str = "model"
+    pairwise: ClassVar[bool] = True
+
+    def prompt(self, context: str, reference: str, first: str, second: str) -> list[dict]:
+        return [
+            {"role": "system", "content": JUDGE_SYSTEM},
+            {
+                "role": "user",
+                "content": JUDGE_TEMPLATE.format(
+                    context=context, reference=reference, first=first, second=second
+                ),
+            },
+        ]
+
+    def prefer(self, context: str, reference: str, first: str, second: str) -> float:
+        """1.0 when `first` is closer to the reference, 0.0 when `second` is."""
+        return parse_preference(self.complete(self.prompt(context, reference, first, second)))
+
+
+def paired_preferences(
+    items: Sequence[tuple[str, str, str, str]],
+    judge: ModelJudge,
+    *,
+    seed: int = 0,
+) -> list[Comparison]:
+    """Pairwise comparison with the two candidates in a seeded order.
+
+    Order is drawn per item from `random.Random(seed)` so the same run asks the same
+    question twice and a different seed asks the mirror of half of it. A judge with a
+    position preference then cancels out across items instead of adding to one arm.
+    """
+    rng = random.Random(seed)
+    results: list[Comparison] = []
+    for index, (context, reference, base_text, adapted_text) in enumerate(items):
+        base_first = rng.random() < 0.5
+        if base_first:
+            preference = judge.prefer(context, reference, base_text, adapted_text)
+            base_score, adapted_score = preference, 1.0 - preference
+            order = "base-first"
+        else:
+            preference = judge.prefer(context, reference, adapted_text, base_text)
+            base_score, adapted_score = 1.0 - preference, preference
+            order = "adapted-first"
+        results.append(Comparison(index=index, base=base_score, adapted=adapted_score, order=order))
+    return results

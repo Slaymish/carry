@@ -47,12 +47,25 @@ Three layers, and only one of them is new.
 
 ## Status
 
-Early. The question is written down, and the evaluation harness exists and runs: it scores supplied arms on a recent held-out set and on a fixed anchor set, each with its own bootstrap interval, and refuses to print a retention number it has not measured. No adapter has been trained yet, so every gain and retention figure it can currently print is from synthetic arms and is labelled as not a result. That ordering is deliberate.
+Early. The question is written down, and the evaluation harness runs: it scores supplied
+arms on a recent held-out set and on a fixed anchor set, each with its own bootstrap
+interval, and refuses to print a retention number it has not measured.
+
+On 4 November 2026 a model went in the loop for the first time. qwen3.8-27b generated
+three arms (frozen, ledger-prompted, shuffled-ledger) over a 48-episode synthetic
+fixture; a lexical floor and gemma-4-31b judged them blind, in a seeded order, never
+told which arm was which. The result is a null, and the sabotage gate fails under the
+model judge at ten recent items: the shuffled-ledger arm scored above the real one. That
+is written up in [`docs/04-first-number.md`](docs/04-first-number.md), void verdict
+included, rather than quietly retried at a friendlier seed.
+
+No adapter has been trained. The ledger arm is prompt-level adaptation, which is a
+baseline this project has to beat, not the parametric claim it is making.
 
 ## Layout
 
 ```
-docs/       the question, the approach, the evaluation design, open problems
+docs/       the question, the approach, the evaluation design, the first number, open problems
 research/   prior art, with every citation verified against the paper
 code/       the harness: stream handling, held-out splits, judges, scoring
 ```

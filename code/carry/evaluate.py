@@ -24,11 +24,18 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import replace
 from pathlib import Path
 from typing import Sequence
 
-from .judge import LexicalJudge, bootstrap_interval, paired_gain, tokens
+from .judge import (
+    LexicalJudge,
+    ModelJudge,
+    bootstrap_interval,
+    paired_gain,
+    paired_preferences,
+    tokens,
+)
 from .split import check_no_leakage, holdout
 from .stream import Episode, StreamError, group_episodes, load_stream
 
@@ -54,6 +61,19 @@ def build_items(episodes: Sequence[Episode]) -> list[tuple[str, str]]:
         context = "\n".join(f"{t.role}: {t.text}" for t in turns[:last])
         items.append((context, turns[last].text))
     return items
+
+
+def compare_items(items: Sequence[Item], judge, *, seed: int = 0):
+    """Score the paired comparison with whichever kind of judge was handed in.
+
+    A scoring judge (lexical) sees one candidate at a time; a pairwise judge (a model)
+    sees both and only says which is closer. Both give one delta per item, so the same
+    bootstrap applies to either. The dispatch is one attribute rather than a second
+    evaluation path, because two paths would drift.
+    """
+    if getattr(judge, "pairwise", False):
+        return paired_preferences(items, judge, seed=seed)
+    return paired_gain(items, judge)
 
 
 def demo_arms(pairs: Sequence[tuple[str, str]]) -> list[Item]:
@@ -153,6 +173,7 @@ def retention(
     judge,
     *,
     scored: bool,
+    seed: int = 0,
 ) -> dict:
     """The same paired comparison, on the anchor set, with its own interval.
 
@@ -184,7 +205,7 @@ def retention(
             "reason": f"{len(items)} anchor item(s); an interval needs at least {MIN_ITEMS}",
             "note": ANCHOR_NOTE,
         }
-    deltas = [comparison.delta for comparison in paired_gain(items, judge)]
+    deltas = [comparison.delta for comparison in compare_items(items, judge, seed=seed)]
     low, high = bootstrap_interval(deltas)
     return {
         "computed": True,
@@ -218,6 +239,35 @@ def controls(items: Sequence[Item], judge) -> dict[str, float]:
     }
 
 
+def length_matched(items: Sequence[Item], deltas: Sequence[float]) -> dict:
+    """The same gain, on the items where the adapted reply is not the longer one.
+
+    A model that writes more wins naive comparisons, so the answer to "did it win by
+    being longer" is the gain on the items where it was not longer. It is a subset, so
+    it is reported with its size and its own interval, and refused when it is too small
+    to say anything.
+    """
+    kept = [
+        delta
+        for delta, (_context, _reference, base, adapted) in zip(deltas, items)
+        if len(tokens(adapted)) <= len(tokens(base))
+    ]
+    if len(kept) < MIN_ITEMS:
+        return {
+            "computed": False,
+            "items": len(kept),
+            "reason": f"{len(kept)} item(s); a subset interval needs at least {MIN_ITEMS}",
+        }
+    low, high = bootstrap_interval(kept)
+    return {
+        "computed": True,
+        "items": len(kept),
+        "gain": sum(kept) / len(kept),
+        "interval": [low, high],
+        "excludes_zero": bool(low > 0 or high < 0),
+    }
+
+
 def sabotage(items: Sequence[Item]) -> list[Item]:
     """The control that decides whether the metric means anything.
 
@@ -239,6 +289,8 @@ def run(
     recent_fraction: float,
     anchor: int,
     arms: Path | None,
+    judge=None,
+    judge_seed: int = 0,
 ) -> dict:
     """Score one run end to end. Deterministic: same inputs, same numbers, byte for byte."""
     turns = load_stream(stream)
@@ -259,13 +311,16 @@ def run(
         raise StreamError(f"{arms}: no recent candidates")
     items = supplied if supplied is not None else demo_arms(pairs)
 
-    judge = LexicalJudge()
-    comparisons = paired_gain(items, judge)
+    judge = judge if judge is not None else LexicalJudge()
+    comparisons = compare_items(items, judge, seed=judge_seed)
     deltas = [c.delta for c in comparisons]
     gain = sum(deltas) / len(deltas)
     low, high = bootstrap_interval(deltas)
 
-    sabotaged = paired_gain(sabotage(items), judge)
+    # The same judge, the same seed, on replies paired with another item's reference.
+    # Its schedule is independent of the candidate's, so this control costs the judge
+    # the same number of calls as the real comparison and cannot be skipped cheaply.
+    sabotaged = compare_items(sabotage(items), judge, seed=judge_seed + 1)
     sabotage_delta = sum(c.delta for c in sabotaged) / len(sabotaged)
 
     return {
@@ -280,7 +335,15 @@ def run(
         "excludes_zero": bool(low > 0 or high < 0),
         "sabotage_gain": sabotage_delta,
         "sabotage_beats_real": bool(sabotage_delta >= gain),
-        "retention": retention(records, build_items(split.anchor), judge, scored=bool(arms)),
+        "length_matched": length_matched(items, deltas),
+        "wins": {
+            "adapted": sum(1 for d in deltas if d > 0),
+            "tied": sum(1 for d in deltas if d == 0),
+            "base": sum(1 for d in deltas if d < 0),
+        },
+        "retention": retention(
+            records, build_items(split.anchor), judge, scored=bool(arms), seed=judge_seed
+        ),
         "anchor_note": ANCHOR_NOTE,
         "controls": controls(items, judge),
     }
@@ -294,7 +357,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--recent-fraction", type=float, default=0.25, help="held-out tail share")
     parser.add_argument("--anchor-episodes", type=int, default=3, help="fixed old episodes")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument("--judge", choices=("lexical", "model"), default="lexical",
+                        help="lexical-f1 floor, or a pairwise model judge")
+    parser.add_argument("--judge-model", default="gemma-4-31b",
+                        help="model judge name (default gemma-4-31b, a different family from qwen)")
+    parser.add_argument("--judge-base-url", default=None, help="OpenAI-compatible base URL for the judge")
+    parser.add_argument("--judge-seed", type=int, default=0,
+                        help="seed for the per-item A/B shuffle (default 0)")
     args = parser.parse_args(argv)
+
+    judge = None
+    if args.judge == "model":
+        # Imported here, not at module level: generate imports this module, and a
+        # module-level import back would be a cycle for no benefit.
+        from .generate import ChatClient
+
+        client = ChatClient.from_env()
+        if args.judge_base_url:
+            client = replace(client, base_url=args.judge_base_url)
+        # A judge answer is one word, so the budget is small; temperature stays at 0.
+        # The reasoning step is off: a judge that thinks first writes the same labels
+        # more slowly, and a 30-token answer does not need a 600-token preamble.
+        client = replace(client, model=args.judge_model, max_tokens=64, enable_thinking=False)
+        judge = ModelJudge(complete=client.complete, name=f"model:{args.judge_model}")
 
     try:
         report = run(
@@ -303,6 +388,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             recent_fraction=args.recent_fraction,
             anchor=args.anchor_episodes,
             arms=args.arms,
+            judge=judge,
+            judge_seed=args.judge_seed,
         )
     except StreamError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -334,6 +421,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(f"retention   not computed: {held['reason']}")
     print(f"anchor      {report['anchor_note']}")
+    matched = report["length_matched"]
+    if matched["computed"]:
+        m_low, m_high = matched["interval"]
+        print(f"not-longer  {matched['gain']:+.3f}  95% CI [{m_low:+.3f}, {m_high:+.3f}]  "
+              f"({'excludes zero' if matched['excludes_zero'] else 'includes zero'})  "
+              f"({matched['items']} items)")
+    else:
+        print(f"not-longer  not computed: {matched['reason']}")
+    wins = report["wins"]
+    print(f"wins        adapted {wins['adapted']} / tied {wins['tied']} / base {wins['base']}")
     for key, value in report["controls"].items():
         print(f"{key:<24}{value:.3f}")
     return 0

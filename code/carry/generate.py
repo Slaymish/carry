@@ -138,6 +138,7 @@ class ChatClient:
     model: str = DEFAULT_MODEL
     temperature: float = 0.0
     max_tokens: int = DEFAULT_MAX_TOKENS
+    enable_thinking: bool = True
     timeout: float = DEFAULT_TIMEOUT
     transport: Callable[[str, dict], dict] | None = None
 
@@ -154,13 +155,19 @@ class ChatClient:
         return self.base_url.rstrip("/") + "/chat/completions"
 
     def payload(self, messages: Sequence[dict]) -> dict:
-        return {
+        payload = {
             "model": self.model,
             "messages": [dict(message) for message in messages],
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "stream": False,
         }
+        if not self.enable_thinking:
+            # The Qwen chat template accepts this. Off is not a free win: it trades
+            # quality for wall-clock, and it is set for every arm at once so no arm
+            # gets the slower, better path. A run that turns it off says so.
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+        return payload
 
     def complete(self, messages: Sequence[dict]) -> str:
         """One generation, one string. No retries: a failure is reported, not hidden."""
@@ -384,13 +391,40 @@ def write_candidates(path: Path, candidates: Sequence[Candidate]) -> None:
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
-def write_arms(directory: Path, candidates: Sequence[Candidate], *, adapted: str) -> Path:
-    """Write one harness-ready comparison file: frozen as base, `adapted` as adapted."""
+def write_pair(
+    directory: Path,
+    candidates: Sequence[Candidate],
+    *,
+    base_arm: str,
+    adapted_arm: str,
+) -> Path:
+    """Write one harness-ready comparison file between any two arms.
+
+    Any pair, not just frozen-vs-something: `ledger - sabotaged` is the sabotage gate
+    as a paired interval, and it is written by the same code as the headline number so
+    the two cannot disagree about item order or indices.
+    """
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{adapted}-vs-frozen.jsonl"
-    lines = [json.dumps(candidate.arms_json(adapted), ensure_ascii=False) for candidate in candidates]
+    path = directory / f"{adapted_arm}-vs-{base_arm}.jsonl"
+    lines = [
+        json.dumps(
+            {
+                "split": candidate.split,
+                "index": candidate.index,
+                "base": candidate.arm(base_arm),
+                "adapted": candidate.arm(adapted_arm),
+            },
+            ensure_ascii=False,
+        )
+        for candidate in candidates
+    ]
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     return path
+
+
+def write_arms(directory: Path, candidates: Sequence[Candidate], *, adapted: str) -> Path:
+    """Write one harness-ready comparison file: frozen as base, `adapted` as adapted."""
+    return write_pair(directory, candidates, base_arm="frozen", adapted_arm=adapted)
 
 
 # ---------------------------------------------------------------- CLI
@@ -408,6 +442,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--base-url", default=None, help=f"OpenAI-compatible base URL (default {DEFAULT_BASE_URL})")
     parser.add_argument("--timeout", type=float, default=None, help=f"seconds per request (default {DEFAULT_TIMEOUT})")
     parser.add_argument("--max-tokens", type=int, default=None, help=f"reply budget (default {DEFAULT_MAX_TOKENS})")
+    parser.add_argument("--disable-thinking", action="store_true",
+                        help="turn off the chat template's reasoning step for every arm")
     parser.add_argument("--gap-hours", type=float, default=3.0, help="episode boundary (default 3)")
     parser.add_argument("--recent-fraction", type=float, default=0.25, help="held-out tail share")
     parser.add_argument("--anchor-episodes", type=int, default=3, help="fixed old episodes")
@@ -427,6 +463,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         client = replace(client, timeout=args.timeout)
     if args.max_tokens:
         client = replace(client, max_tokens=args.max_tokens)
+    if args.disable_thinking:
+        client = replace(client, enable_thinking=False)
 
     try:
         episodes = group_episodes(load_stream(args.stream), gap=timedelta(hours=args.gap_hours))
@@ -462,6 +500,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             for adapted in ("ledger", "sabotaged"):
                 path = write_arms(args.arms_dir, candidates, adapted=adapted)
                 print(f"wrote {path}", file=sys.stderr)
+            path = write_pair(args.arms_dir, candidates, base_arm="sabotaged", adapted_arm="ledger")
+            print(f"wrote {path}", file=sys.stderr)
     except (StreamError, GenerateError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
