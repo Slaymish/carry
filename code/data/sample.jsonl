@@ -1,0 +1,64 @@
+{"ts": "2026-09-01T09:00:00Z", "role": "user", "text": "I want to move the build off the laptop this week"}
+{"ts": "2026-09-01T09:01:00Z", "role": "assistant", "text": "Fair. Which parts can run remotely, and which need to stay local?"}
+{"ts": "2026-09-01T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-09-01T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-09-05T09:00:00Z", "role": "user", "text": "Just the packaging step, it steals the machine for twenty minutes"}
+{"ts": "2026-09-05T09:01:00Z", "role": "assistant", "text": "Run packaging remotely and leave the edit loop local. I would not move the tests yet."}
+{"ts": "2026-09-09T09:00:00Z", "role": "user", "text": "Can you stop summarising what I already said before answering"}
+{"ts": "2026-09-09T09:01:00Z", "role": "assistant", "text": "Yes. Answer first, no restatement."}
+{"ts": "2026-09-13T09:00:00Z", "role": "user", "text": "The deploy failed again on the asset upload"}
+{"ts": "2026-09-13T09:01:00Z", "role": "assistant", "text": "Upload hits the size limit before the permission check. Split it into two steps."}
+{"ts": "2026-09-13T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-09-13T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-09-17T09:00:00Z", "role": "user", "text": "Did that, it got further and then timed out"}
+{"ts": "2026-09-17T09:01:00Z", "role": "assistant", "text": "Then the limit is request time, not payload. Chunk it and retry only the failed chunk."}
+{"ts": "2026-09-21T09:00:00Z", "role": "user", "text": "I want the docs to stop explaining things twice"}
+{"ts": "2026-09-21T09:01:00Z", "role": "assistant", "text": "One statement per point, and delete the second when it says the same thing."}
+{"ts": "2026-09-25T09:00:00Z", "role": "user", "text": "Should the cache sit in front of the database or behind the API"}
+{"ts": "2026-09-25T09:01:00Z", "role": "assistant", "text": "In front of the database. The API is cheap and the query is not."}
+{"ts": "2026-09-25T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-09-25T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-09-29T09:00:00Z", "role": "user", "text": "The numbers in the report look off"}
+{"ts": "2026-09-29T09:01:00Z", "role": "assistant", "text": "They are. The total sums rows that already include the subtotal. Recompute from rows only."}
+{"ts": "2026-10-03T09:00:00Z", "role": "user", "text": "Remind me why we dropped the queue"}
+{"ts": "2026-10-03T09:01:00Z", "role": "assistant", "text": "It hid failures. A dropped job looked identical to a fast one."}
+{"ts": "2026-10-07T09:00:00Z", "role": "user", "text": "I keep rewriting the same intro paragraph"}
+{"ts": "2026-10-07T09:01:00Z", "role": "assistant", "text": "You rewrite the middle sentence each time. Cut it and the paragraph stops arguing with itself."}
+{"ts": "2026-10-07T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-10-07T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-10-11T09:00:00Z", "role": "user", "text": "Can you get the reference numbers for the second chart"}
+{"ts": "2026-10-11T09:01:00Z", "role": "assistant", "text": "Not from the summary. They are in the raw file, so I will read it rather than guess."}
+{"ts": "2026-10-15T09:00:00Z", "role": "user", "text": "The page is slow on a phone"}
+{"ts": "2026-10-15T09:01:00Z", "role": "assistant", "text": "The hero is being sent at desktop width. Serve a smaller one below 48rem."}
+{"ts": "2026-10-19T09:00:00Z", "role": "user", "text": "I do not want a fallback that hides the error"}
+{"ts": "2026-10-19T09:01:00Z", "role": "assistant", "text": "Then it fails loudly and you fix the cause. A quiet fallback and a dead job look the same."}
+{"ts": "2026-10-19T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-10-19T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-10-23T09:00:00Z", "role": "user", "text": "How much has the bill gone up"}
+{"ts": "2026-10-23T09:01:00Z", "role": "assistant", "text": "Nine percent, almost all storage. Compute is flat."}
+{"ts": "2026-10-27T09:00:00Z", "role": "user", "text": "Add a check that stops me shipping a broken link"}
+{"ts": "2026-10-27T09:01:00Z", "role": "assistant", "text": "A link check that fails the build, not a warning. Warnings get scrolled past."}
+{"ts": "2026-10-31T09:00:00Z", "role": "user", "text": "The naming is inconsistent across the two modules"}
+{"ts": "2026-10-31T09:01:00Z", "role": "assistant", "text": "Pick the one the interface already uses and rename the other. Do not invent a third."}
+{"ts": "2026-10-31T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-10-31T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-11-04T09:00:00Z", "role": "user", "text": "Make the failure message say which field was wrong"}
+{"ts": "2026-11-04T09:01:00Z", "role": "assistant", "text": "Name the field and the rule. Validation failed costs a second visit."}
+{"ts": "2026-11-08T09:00:00Z", "role": "user", "text": "I think the test is wrong, not the code"}
+{"ts": "2026-11-08T09:01:00Z", "role": "assistant", "text": "Read the assertion first. It expects the old order, which we changed deliberately."}
+{"ts": "2026-11-12T09:00:00Z", "role": "user", "text": "Put the dark theme back, light is harsh at night"}
+{"ts": "2026-11-12T09:01:00Z", "role": "assistant", "text": "Dark after sunset, light by default. I will not ask again."}
+{"ts": "2026-11-12T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-11-12T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-11-16T09:00:00Z", "role": "user", "text": "The export is missing two rows"}
+{"ts": "2026-11-16T09:01:00Z", "role": "assistant", "text": "The filter drops rows with no timestamp. Include them and label the timestamp empty."}
+{"ts": "2026-11-20T09:00:00Z", "role": "user", "text": "The map flickers when I drag it"}
+{"ts": "2026-11-20T09:01:00Z", "role": "assistant", "text": "The redraw is happening per pointer move. Coalesce to one per frame."}
+{"ts": "2026-11-24T09:00:00Z", "role": "user", "text": "Should I keep the old endpoint alive for a month"}
+{"ts": "2026-11-24T09:01:00Z", "role": "assistant", "text": "Only if something you cannot update calls it. Otherwise remove it and watch the logs."}
+{"ts": "2026-11-24T09:12:00Z", "role": "user", "text": "ok that works"}
+{"ts": "2026-11-24T09:13:00Z", "role": "assistant", "text": "Good. I will keep to that."}
+{"ts": "2026-11-28T09:00:00Z", "role": "user", "text": "The CLI takes four seconds to start"}
+{"ts": "2026-11-28T09:01:00Z", "role": "assistant", "text": "It imports the whole package for one command. Load that module lazily."}
+{"ts": "2026-12-02T09:00:00Z", "role": "user", "text": "I want the error page to say what to do next"}
+{"ts": "2026-12-02T09:01:00Z", "role": "assistant", "text": "Then it needs the failing action, not the stack trace. Give the next step in one line."}

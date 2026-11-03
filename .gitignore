@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+# Never commit anything derived from a real interaction stream.
+data/private/
+*.local.jsonl
+*.adapters/
+*.safetensors
+*.gguf
