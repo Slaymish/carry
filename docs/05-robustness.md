@@ -131,11 +131,10 @@ says "yes, call them" and the reference agrees with it, while the ledger arm ans
 never email or call members", applying a remembered line out of scope. The model judge was
 right to prefer the frozen reply there.
 
-## The regenerated run: the ledger arm ties the sabotage arm
+## The regenerated run: the real block loses to its own scramble
 
 Run 2 regenerated all three arms on the same fixture at the same settings, with the
-sabotage block now holding the ledger's own eight sentences in a different order. Lexical
-judge, ten recent items:
+sabotage block now holding the ledger's own eight sentences in a different order.
 
 ```
                           gain    95% CI          wins
@@ -143,6 +142,7 @@ lexical judge, ten recent items
 ledger vs frozen        +0.075  [-0.008, +0.165]   6/0/4
 sabotaged vs frozen     +0.072  [+0.002, +0.142]   7/1/2
 ledger vs sabotaged     +0.003  [-0.031, +0.036]   3/2/5
+manner lines only       +0.004  [-0.057, +0.061]   6/1/3
 at equal length         -0.004  (ledger, from the length fit)
 retention                +0.042  [-0.040, +0.122]
 
@@ -158,16 +158,25 @@ scrambled block wins the paired comparison by 0.4, with the only interval on thi
 excludes zero: the ledger arm wins none of the ten items, ties six and loses four.
 
 That is a better-shaped failure than the one in `04`, and it is still a failure. Whatever the
-prompt arms gain over frozen is not the order of the sentences and, on the model judge's
-reading, not their content either: it is the presence of a block.
+prompt arms gain over frozen, the order of the sentences is not it. What is left is measured
+next.
 
-The old, broken sabotaged arm gained `+0.013`. The fixed one gains `+0.072`. The difference
-between the two blocks is four lines, and two of them are the fixture's stated manner:
-*"I prefer two sentences; the third one is usually padding"* and *"I'd rather have the number
-in the first sentence and the reason after it."* The leading explanation, and it is an
-explanation rather than a measurement, is that both prompt arms are being told the house
-style that the reference replies were written in, and the lexical judge is rewarding exactly
-that. That is a fixture-design leak in this repository, not a property of the model.
+The old, broken sabotaged arm gained `+0.013`; the fixed one gains `+0.072`. Four lines
+differ between the two blocks, and two of them state the fixture's manner: *"I prefer two
+sentences; the third one is usually padding"* and *"I'd rather have the number in the first
+sentence and the reason after it."* So the first explanation was that the prompt arms were
+being handed the house style the references were written in.
+
+**Tested and refuted.** A fourth arm was given those two lines and nothing else, no episode,
+no memory (`data/robustness/manner_arm.py`, same model, same ten items): `+0.004`
+`[-0.057, +0.061]`. Being told the manner is worth nothing on this metric.
+
+What separates the manner arm from the two prompt arms is not style but the number of the
+user's own sentences in the prompt. Two lines give nothing; eight give `+0.072` whether they
+are in the right order or shuffled. A lexical judge rewards sharing vocabulary with a
+reference written by the same hand, and the block is the user's vocabulary. That is a
+measured claim about this metric, and it is the least flattering reading of it: the thing
+being measured is how much of the user's phrasing is in the prompt.
 
 ## Generation is not reproducible, and the harness cannot fix that from here
 
@@ -195,9 +204,9 @@ makes any of this reproducible at all, which is a second reason on top of wall-c
 - The model-judge number for `ledger vs frozen` on recent items is not a quantity. It is the
   sum of two undecided items, and its sign depends on which slot they were placed in.
 - Under the lexical judge, the ledger arm's gain over frozen is (a) indistinguishable from a
-  scrambled block of the same sentences, and (b) about zero once length is fitted out. It is
-  not evidence of attunement and it is not evidence of brevity; it is a prompt arm being
-  handed the house style.
+  scrambled block of the same sentences, (b) about zero once length is fitted out, and (c)
+  absent when only the two manner lines are supplied. It is not attunement, not brevity and
+  not style: it tracks how much of the user's own vocabulary is in the prompt.
 - The anchor result is order-robust (+0.625 on all ten seeds) and still means what `04` says
   it means: a prompt arm carries the vocabulary whether or not it will be used. Nothing was
   trained, so nothing can be retained, and that comparison rewards the prompt arm by
@@ -226,6 +235,9 @@ makes any of this reproducible at all, which is a second reason on top of wall-c
    ledger arm echoed the block's phrase "the Friday count": **refuted by its own measurement.**
    Mean lexical delta on the five items that echo it is +0.085, and +0.086 on the other five.
    It is recorded because the wrong idea was the one that looked obvious before the numbers.
+6. My second hypothesis, that the gain was the fixture's house style being handed to the
+   prompt arms: refuted in the same block by the manner-only arm (+0.004, interval containing
+   zero). Two explanations for the same +0.075 died before the run that survived.
 
 ## Reproduce
 
@@ -247,6 +259,11 @@ done
 CARRY_MODEL=qwen3.8-27b python3 -m carry.generate --stream data/fixture-tool-library.jsonl \
   --anchor-episodes 8 --max-lines 8 --disable-thinking --max-tokens 400 \
   --out data/robustness/regen/candidates.jsonl --arms-dir data/robustness/regen/arms
+
+# the manner-only arm (ten completions, front of the run)
+python3 data/robustness/manner_arm.py --out data/robustness/regen/manner-vs-frozen.jsonl
+python3 -m carry.evaluate --stream data/fixture-tool-library.jsonl --anchor-episodes 8 \
+  --arms data/robustness/regen/manner-vs-frozen.jsonl
 
 # length fit and the matched subsets
 python3 -m carry.evaluate --stream data/fixture-tool-library.jsonl --anchor-episodes 8 \
