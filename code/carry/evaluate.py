@@ -217,41 +217,44 @@ def retention(
     }
 
 
+AGREES = ("yes", "yep", "sure", "ok", "okay", "you're right", "agreed")
+
+
+def agrees(text: str) -> bool:
+    """Does the reply open by agreeing? One of the two confounds a win rate rewards."""
+    return text.lower().strip().startswith(AGREES)
+
+
+def words(text: str) -> int:
+    return len(tokens(text))
+
+
 def controls(items: Sequence[Item], judge) -> dict[str, float]:
     """Agreement-drift and verbosity, reported next to every score.
 
     A model that agrees more and writes more wins naive comparisons. These two numbers
-    are the cheapest defence and they are not optional.
+    are the cheapest defence and they are not optional. `judge` is taken and unused:
+    these are properties of the replies, and a pairwise judge would otherwise force a
+    second code path that could drift from this one.
     """
-    def agree(text: str) -> bool:
-        low = text.lower().strip()
-        return low.startswith(("yes", "yep", "sure", "ok", "okay", "you're right", "agreed"))
-
-    def words(text: str) -> int:
-        return len(tokens(text))
-
     n = max(1, len(items))
     return {
-        "base_agreement_rate": sum(agree(i[2]) for i in items) / n,
-        "adapted_agreement_rate": sum(agree(i[3]) for i in items) / n,
+        "base_agreement_rate": sum(agrees(i[2]) for i in items) / n,
+        "adapted_agreement_rate": sum(agrees(i[3]) for i in items) / n,
         "base_mean_words": sum(words(i[2]) for i in items) / n,
         "adapted_mean_words": sum(words(i[3]) for i in items) / n,
     }
 
 
-def length_matched(items: Sequence[Item], deltas: Sequence[float]) -> dict:
-    """The same gain, on the items where the adapted reply is not the longer one.
+def subset_gain(items: Sequence[Item], deltas: Sequence[float], keep) -> dict:
+    """The same gain on a subset that removes one confound.
 
-    A model that writes more wins naive comparisons, so the answer to "did it win by
-    being longer" is the gain on the items where it was not longer. It is a subset, so
-    it is reported with its size and its own interval, and refused when it is too small
-    to say anything.
+    Narrower evidence than the whole set, so it carries its own size and interval, and
+    is refused when the subset is too small to say anything. The subset is defined on
+    the replies, never on the deltas, so it cannot be chosen after seeing which items
+    favoured the adapted arm.
     """
-    kept = [
-        delta
-        for delta, (_context, _reference, base, adapted) in zip(deltas, items)
-        if len(tokens(adapted)) <= len(tokens(base))
-    ]
+    kept = [delta for delta, item in zip(deltas, items) if keep(item)]
     if len(kept) < MIN_ITEMS:
         return {
             "computed": False,
@@ -266,6 +269,101 @@ def length_matched(items: Sequence[Item], deltas: Sequence[float]) -> dict:
         "interval": [low, high],
         "excludes_zero": bool(low > 0 or high < 0),
     }
+
+
+def not_longer(item: Item) -> bool:
+    return words(item[3]) <= words(item[2])
+
+
+def not_more_agreeable(item: Item) -> bool:
+    return not agrees(item[3]) or agrees(item[2])
+
+
+def length_matched(items: Sequence[Item], deltas: Sequence[float]) -> dict:
+    """The same gain, on the items where the adapted reply is not the longer one.
+
+    A model that writes more wins naive comparisons, so the answer to "did it win by
+    being longer" is the gain on the items where it was not longer.
+    """
+    return subset_gain(items, deltas, not_longer)
+
+
+def agreement_matched(items: Sequence[Item], deltas: Sequence[float]) -> dict:
+    """The same gain, on the items where the adapted reply is not more agreeable.
+
+    The counterpart to the length control. A judge that rewards "yes, and here is the
+    answer" over "here is the number" will give the agreeable arm a gain that has
+    nothing to do with attunement, and this is the subset where that cannot happen.
+    """
+    return subset_gain(items, deltas, not_more_agreeable)
+
+
+def length_gradient(items: Sequence[Item], deltas: Sequence[float]) -> dict:
+    """The gain at equal length, from a least-squares line through (words saved, delta).
+
+    The subset control asks whether the gain survives on the items where the adapted
+    reply is not longer. That is a binary version of a size question: a reply two words
+    shorter and one twenty words shorter are counted alike. Fitting delta against words
+    saved says both how much of the gain is a per-word effect (the slope) and what is
+    left at equal length (the intercept). For a precision-weighted judge the slope
+    should be positive if brevity is being rewarded.
+    """
+    xs = [words(item[2]) - words(item[3]) for item in items]
+    ys = [float(delta) for delta in deltas]
+    n = len(xs)
+    if n < MIN_ITEMS:
+        return {
+            "computed": False,
+            "items": n,
+            "reason": f"{n} item(s); a gradient needs at least {MIN_ITEMS}",
+        }
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    spread = sum((x - mean_x) ** 2 for x in xs)
+    if spread == 0:
+        return {
+            "computed": False,
+            "items": n,
+            "reason": "every item saved the same number of words; no gradient to fit",
+        }
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / spread
+    return {
+        "computed": True,
+        "items": n,
+        "slope_per_word": slope,
+        "at_equal_length": mean_y - slope * mean_x,
+        "mean_words_saved": mean_x,
+    }
+
+
+def confounds_removed(items: Sequence[Item], deltas: Sequence[float]) -> dict:
+    """The gain on items where the adapted reply is neither longer nor more agreeable."""
+    return subset_gain(items, deltas, lambda item: not_longer(item) and not_more_agreeable(item))
+
+
+def items_detail(items: Sequence[Item], comparisons: Sequence[object]) -> list[dict]:
+    """One row per held-out item: both scores, both reply shapes.
+
+    Written into the JSON report so two judges can be compared item by item instead of
+    by reading two point estimates. "The judges disagree" at the level of aggregates is
+    a different claim from disagreement on these three items and not those four.
+    """
+    rows: list[dict] = []
+    for comparison, (_context, _reference, base, adapted) in zip(comparisons, items):
+        rows.append(
+            {
+                "index": comparison.index,
+                "order": comparison.order,
+                "base_score": comparison.base,
+                "adapted_score": comparison.adapted,
+                "delta": comparison.delta,
+                "base_words": words(base),
+                "adapted_words": words(adapted),
+                "base_agrees": agrees(base),
+                "adapted_agrees": agrees(adapted),
+            }
+        )
+    return rows
 
 
 def sabotage(items: Sequence[Item]) -> list[Item]:
@@ -336,6 +434,10 @@ def run(
         "sabotage_gain": sabotage_delta,
         "sabotage_beats_real": bool(sabotage_delta >= gain),
         "length_matched": length_matched(items, deltas),
+        "agreement_matched": agreement_matched(items, deltas),
+        "confounds_removed": confounds_removed(items, deltas),
+        "length_gradient": length_gradient(items, deltas),
+        "items_detail": items_detail(items, comparisons),
         "wins": {
             "adapted": sum(1 for d in deltas if d > 0),
             "tied": sum(1 for d in deltas if d == 0),
@@ -421,14 +523,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(f"retention   not computed: {held['reason']}")
     print(f"anchor      {report['anchor_note']}")
-    matched = report["length_matched"]
-    if matched["computed"]:
-        m_low, m_high = matched["interval"]
-        print(f"not-longer  {matched['gain']:+.3f}  95% CI [{m_low:+.3f}, {m_high:+.3f}]  "
-              f"({'excludes zero' if matched['excludes_zero'] else 'includes zero'})  "
-              f"({matched['items']} items)")
+    for key, label in (
+        ("length_matched", "not-longer"),
+        ("agreement_matched", "not-agreeing"),
+        ("confounds_removed", "clean"),
+    ):
+        part = report[key]
+        if part["computed"]:
+            m_low, m_high = part["interval"]
+            print(f"{label:<13}{part['gain']:+.3f}  95% CI [{m_low:+.3f}, {m_high:+.3f}]  "
+                  f"({'excludes zero' if part['excludes_zero'] else 'includes zero'})  "
+                  f"({part['items']} items)")
+        else:
+            print(f"{label:<13}not computed: {part['reason']}")
+    gradient = report["length_gradient"]
+    if gradient["computed"]:
+        print(f"per-word    {gradient['slope_per_word']:+.3f} per word saved; "
+              f"{gradient['at_equal_length']:+.3f} at equal length "
+              f"(mean {gradient['mean_words_saved']:+.1f} words saved)")
     else:
-        print(f"not-longer  not computed: {matched['reason']}")
+        print(f"per-word    not computed: {gradient['reason']}")
     wins = report["wins"]
     print(f"wins        adapted {wins['adapted']} / tied {wins['tied']} / base {wins['base']}")
     for key, value in report["controls"].items():

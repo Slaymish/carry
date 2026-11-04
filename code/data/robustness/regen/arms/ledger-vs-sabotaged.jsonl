@@ -1,0 +1,18 @@
+{"split": "recent", "index": 0, "base": "Twelve items came back today.", "adapted": "Twelve items came back today."}
+{"split": "recent", "index": 1, "base": "The van is free on Sunday, so book it alongside the cutter. The Friday count will reflect both.", "adapted": "The van is free on Sunday, so book it alongside the tile cutter. The Friday count will reflect both bookings."}
+{"split": "recent", "index": 2, "base": "Ninety-four is four short of the register. Check the cage next, as the sander is likely misplaced there.", "adapted": "Bay 6 being empty confirms the sander is the missing item. Check the noticeboard for the booking error that caused the discrepancy."}
+{"split": "recent", "index": 3, "base": "No, the noticeboard is still the only channel.", "adapted": "The Friday count is 12, so the closure is already reflected in the numbers. Post the notice on the board, as that is the only channel we use."}
+{"split": "recent", "index": 4, "base": "No, the cage is closed on Saturdays. They must collect by Friday.", "adapted": "No, the cage is closed on Saturdays so they must collect by Friday."}
+{"split": "recent", "index": 5, "base": "No, we never email or call members, so the noticeboard is the only channel. Post the overdue list there and let the Friday count do the talking.", "adapted": "No, we never email or call members, so the noticeboard is the only channel. Post the overdue list there and let the Friday count do the talking."}
+{"split": "recent", "index": 6, "base": "The Friday count is 42. It sits at the top of the grid so you see it before the bays.", "adapted": "The Friday count is 42, which is the only number I trust."}
+{"split": "recent", "index": 7, "base": "The standard weekly rate.", "adapted": "The standard weekly rate for the sander."}
+{"split": "recent", "index": 8, "base": "Yes, we close at 17:00 on the 21st.", "adapted": "No, we close at the usual time."}
+{"split": "recent", "index": 9, "base": "The Friday count is 42. It’s the only number I trust, so lead with it.", "adapted": "The Friday count is 42, which is two under the expected total."}
+{"split": "anchor", "index": 0, "base": "That’s the right place to put it. It ensures the constraint holds even if the app crashes mid-transaction.", "adapted": "That’s the right place to enforce it."}
+{"split": "anchor", "index": 1, "base": "No, that figure excludes the cancelled ones.", "adapted": "No, that figure excludes the cancelled ones."}
+{"split": "anchor", "index": 2, "base": "No, just post it on the noticeboard. We never email members.", "adapted": "No, just post it on the noticeboard."}
+{"split": "anchor", "index": 3, "base": "The Friday count is 42, which matches the ledger exactly.", "adapted": "The Friday count is 42, which confirms the current loan status."}
+{"split": "anchor", "index": 4, "base": "The Friday count is the only number I trust, so lead with it.", "adapted": "Move the count into the SQL query instead of looping through the loans in the application."}
+{"split": "anchor", "index": 5, "base": "No, we never email members, so the noticeboard is the only channel.", "adapted": "No, we never email or call members, so the noticeboard is the only channel."}
+{"split": "anchor", "index": 6, "base": "Thursday 17:00 is the cutoff.", "adapted": "Thursday 17:00 it is."}
+{"split": "anchor", "index": 7, "base": "The `dev_seed.sql` in the `scripts` folder.", "adapted": "It’s the `dev_seed.sql` in the root directory."}

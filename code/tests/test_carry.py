@@ -20,9 +20,13 @@ from pathlib import Path
 from carry import generate as generate_module
 from carry.evaluate import (
     ANCHOR_NOTE,
+    agreement_matched,
     build_items,
     compare_items,
+    confounds_removed,
     demo_arms,
+    items_detail,
+    length_gradient,
     length_matched,
     load_arm_records,
     run,
@@ -409,6 +413,9 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(len(body), len(self.ledger.splitlines()[1:]))
         if len(body) > 1:
             self.assertNotEqual(self.sabotaged, self.ledger)
+        # Same sentences, only reordered. A shuffle that redraws which lines are in the
+        # block as well would confound content with order.
+        self.assertEqual(sorted(body), sorted(self.ledger.splitlines()[1:]))
 
     def test_generation_is_reproducible_byte_for_byte(self):
         transport = stub_transport()
@@ -522,10 +529,72 @@ class LengthControlTests(unittest.TestCase):
         self.assertEqual(matched["items"], 3)
         self.assertAlmostEqual(matched["gain"], 0.3)
 
+    def test_the_gradient_recovers_a_pure_brevity_effect(self):
+        # Delta exactly proportional to words saved: slope 1, nothing left at equal length.
+        items = [
+            ("ctx", "ref", "a b", "a"),             # saved 1
+            ("ctx", "ref", "a b c", "a b"),         # saved 1
+            ("ctx", "ref", "a b c d", "a b"),       # saved 2
+            ("ctx", "ref", "a b c d e", "a b c"),   # saved 2
+        ]
+        gradient = length_gradient(items, [0.1, 0.1, 0.2, 0.2])
+        self.assertTrue(gradient["computed"])
+        self.assertAlmostEqual(gradient["slope_per_word"], 0.1)
+        self.assertAlmostEqual(gradient["at_equal_length"], 0.0)
+
+    def test_a_gradient_needs_varying_lengths(self):
+        items = [("ctx", "ref", "a b", "a")] * 3
+        gradient = length_gradient(items, [0.1, 0.2, 0.3])
+        self.assertFalse(gradient["computed"])
+        self.assertNotIn("at_equal_length", gradient)
+
     def test_a_subset_too_small_to_say_anything_is_refused(self):
         matched = length_matched([("ctx", "ref", "a b c", "a")], [0.4])
         self.assertFalse(matched["computed"])
         self.assertNotIn("gain", matched)
+
+
+class AgreementControlTests(unittest.TestCase):
+    def test_only_items_where_the_adapted_reply_is_not_more_agreeable_are_kept(self):
+        items = [
+            ("ctx", "ref", "Yes, done.", "Done, and counted."),        # both agree? no: base yes, adapted no -> kept
+            ("ctx", "ref", "Done.", "Sure, done and counted."),        # adapted agrees: dropped
+            ("ctx", "ref", "Ok, booked.", "Booked, both slots."),      # base agrees, adapted not: kept
+            ("ctx", "ref", "Booked.", "Booked, both slots."),          # neither: kept
+        ]
+        matched = agreement_matched(items, [0.5, 0.9, 0.1, 0.3])
+        self.assertTrue(matched["computed"])
+        self.assertEqual(matched["items"], 3)
+        self.assertAlmostEqual(matched["gain"], 0.3)
+
+    def test_a_reply_that_agrees_when_the_base_also_agrees_is_not_dropped(self):
+        # Equal agreement is not extra agreement: the subset removes the advantage, not
+        # every agreeing reply, or it would throw away most of the fixture.
+        items = [("ctx", "ref", "Yes, one left.", "Yes, one left on the board.")] * 3
+        matched = agreement_matched(items, [0.5, 0.5, 0.5])
+        self.assertEqual(matched["items"], 3)
+
+    def test_the_combined_subset_removes_both_confounds(self):
+        items = [
+            ("ctx", "ref", "one two three", "one two"),                 # shorter, not agreeing: kept
+            ("ctx", "ref", "one", "one two three four five"),           # longer: dropped
+            ("ctx", "ref", "one two three", "Sure, one two three."),    # agreeing: dropped
+            ("ctx", "ref", "one two three", "one two"),                 # kept
+        ]
+        matched = confounds_removed(items, [0.5, 0.9, 0.1, 0.3])
+        self.assertEqual(matched["items"], 2)
+        self.assertFalse(matched["computed"])  # two items cannot carry an interval
+
+    def test_items_detail_carries_one_row_per_item_with_both_scores(self):
+        items = [("ctx", "ref", "one two", "one"), ("ctx", "ref", "three", "three four")]
+        comparisons = compare_items(items, ScriptedJudge({"one two": 0.2, "one": 0.6}))
+        rows = items_detail(items, comparisons)
+        self.assertEqual(len(rows), 2)
+        self.assertAlmostEqual(rows[0]["delta"], 0.4)
+        self.assertEqual(rows[1]["delta"], 0.0)
+        self.assertEqual(rows[0]["base_words"], 2)
+        self.assertEqual(rows[1]["adapted_words"], 2)
+        self.assertFalse(rows[0]["adapted_agrees"])
 
 
 class ModelJudgeTests(unittest.TestCase):

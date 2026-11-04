@@ -1,0 +1,188 @@
+{
+  "mode": "supplied-arms",
+  "warning": null,
+  "judge": "model:gemma-4-31b",
+  "stream": "data/fixture-tool-library.jsonl",
+  "counts": {
+    "train_episodes": 30,
+    "recent_episodes": 10,
+    "anchor_episodes": 8,
+    "train_turns": 120,
+    "recent_turns": 40,
+    "anchor_turns": 32
+  },
+  "items": 10,
+  "gain": 0.0,
+  "interval": [
+    -0.5,
+    0.5
+  ],
+  "excludes_zero": false,
+  "sabotage_gain": -0.7,
+  "sabotage_beats_real": false,
+  "length_matched": {
+    "computed": true,
+    "items": 7,
+    "gain": 0.0,
+    "interval": [
+      -0.7142857142857143,
+      0.7142857142857143
+    ],
+    "excludes_zero": false
+  },
+  "agreement_matched": {
+    "computed": true,
+    "items": 10,
+    "gain": 0.0,
+    "interval": [
+      -0.5,
+      0.5
+    ],
+    "excludes_zero": false
+  },
+  "confounds_removed": {
+    "computed": true,
+    "items": 7,
+    "gain": 0.0,
+    "interval": [
+      -0.7142857142857143,
+      0.7142857142857143
+    ],
+    "excludes_zero": false
+  },
+  "items_detail": [
+    {
+      "index": 0,
+      "order": "adapted-first",
+      "base_score": 0.0,
+      "adapted_score": 1.0,
+      "delta": 1.0,
+      "base_words": 13,
+      "adapted_words": 5,
+      "base_agrees": false,
+      "adapted_agrees": false
+    },
+    {
+      "index": 1,
+      "order": "adapted-first",
+      "base_score": 0.5,
+      "adapted_score": 0.5,
+      "delta": 0.0,
+      "base_words": 19,
+      "adapted_words": 20,
+      "base_agrees": false,
+      "adapted_agrees": false
+    },
+    {
+      "index": 2,
+      "order": "adapted-first",
+      "base_score": 0.0,
+      "adapted_score": 1.0,
+      "delta": 1.0,
+      "base_words": 20,
+      "adapted_words": 22,
+      "base_agrees": false,
+      "adapted_agrees": false
+    },
+    {
+      "index": 3,
+      "order": "adapted-first",
+      "base_score": 1.0,
+      "adapted_score": 0.0,
+      "delta": -1.0,
+      "base_words": 28,
+      "adapted_words": 28,
+      "base_agrees": true,
+      "adapted_agrees": false
+    },
+    {
+      "index": 4,
+      "order": "adapted-first",
+      "base_score": 0.5,
+      "adapted_score": 0.5,
+      "delta": 0.0,
+      "base_words": 21,
+      "adapted_words": 13,
+      "base_agrees": true,
+      "adapted_agrees": false
+    },
+    {
+      "index": 5,
+      "order": "adapted-first",
+      "base_score": 1.0,
+      "adapted_score": 0.0,
+      "delta": -1.0,
+      "base_words": 22,
+      "adapted_words": 27,
+      "base_agrees": true,
+      "adapted_agrees": false
+    },
+    {
+      "index": 6,
+      "order": "base-first",
+      "base_score": 0.0,
+      "adapted_score": 1.0,
+      "delta": 1.0,
+      "base_words": 19,
+      "adapted_words": 12,
+      "base_agrees": false,
+      "adapted_agrees": false
+    },
+    {
+      "index": 7,
+      "order": "base-first",
+      "base_score": 0.0,
+      "adapted_score": 1.0,
+      "delta": 1.0,
+      "base_words": 25,
+      "adapted_words": 7,
+      "base_agrees": false,
+      "adapted_agrees": false
+    },
+    {
+      "index": 8,
+      "order": "adapted-first",
+      "base_score": 1.0,
+      "adapted_score": 0.0,
+      "delta": -1.0,
+      "base_words": 9,
+      "adapted_words": 7,
+      "base_agrees": true,
+      "adapted_agrees": false
+    },
+    {
+      "index": 9,
+      "order": "adapted-first",
+      "base_score": 1.0,
+      "adapted_score": 0.0,
+      "delta": -1.0,
+      "base_words": 18,
+      "adapted_words": 12,
+      "base_agrees": false,
+      "adapted_agrees": false
+    }
+  ],
+  "wins": {
+    "adapted": 4,
+    "tied": 2,
+    "base": 4
+  },
+  "retention": {
+    "computed": true,
+    "items": 8,
+    "gain": 0.625,
+    "interval": [
+      0.125,
+      1.0
+    ],
+    "excludes_zero": true,
+    "note": "an anchor is only meaningful once something is actually trained"
+  },
+  "anchor_note": "an anchor is only meaningful once something is actually trained",
+  "controls": {
+    "base_agreement_rate": 0.4,
+    "adapted_agreement_rate": 0.0,
+    "base_mean_words": 19.4,
+    "adapted_mean_words": 15.3
+  }
+}

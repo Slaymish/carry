@@ -54,10 +54,18 @@ interval, and refuses to print a retention number it has not measured.
 On 4 November 2026 a model went in the loop for the first time. qwen3.8-27b generated
 three arms (frozen, ledger-prompted, shuffled-ledger) over a 48-episode synthetic
 fixture; a lexical floor and gemma-4-31b judged them blind, in a seeded order, never
-told which arm was which. The result is a null, and the sabotage gate fails under the
-model judge at ten recent items: the shuffled-ledger arm scored above the real one. That
-is written up in [`docs/04-first-number.md`](docs/04-first-number.md), void verdict
-included, rather than quietly retried at a friendlier seed.
+told which arm was which. That is
+[`docs/04-first-number.md`](docs/04-first-number.md), and its verdict was void.
+
+A second pass the same day, [`docs/05-robustness.md`](docs/05-robustness.md), withdrew
+three of that page's claims and is the state of the art here. The model judge's recent
+delta moves between -0.10 and +0.10 over ten seeds, because two of ten items change their
+verdict when the candidates swap slots, so no sign is quotable. The lexical gain is zero
+once length is fitted out. And with the scrambled block rebuilt from the ledger's own
+sentences, the real block **loses to its own scramble** under the model judge (-0.400,
+the only interval on either page that excludes zero). Scoring is deterministic; generation
+at temperature 0 is not, and one of 18 replies differed between two identical runs. No
+number on this fixture is a result.
 
 No adapter has been trained. The ledger arm is prompt-level adaptation, which is a
 baseline this project has to beat, not the parametric claim it is making.

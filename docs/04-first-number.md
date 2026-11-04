@@ -63,6 +63,10 @@ Anchor set, 8 items, same comparison. Lexical judge: ledger `+0.042`
 `[-0.040, +0.122]`, sabotaged `+0.110` `[+0.002, +0.233]`. Model judge: ledger `+0.625`
 `[+0.125, +1.000]`, sabotaged `+0.625` `[+0.125, +1.000]`.
 
+**Correction, 4 November (Block C):** the two rows naming the sabotaged arm above were
+produced by a block that was not the ledger's own sentences, and are withdrawn. The corrected
+run is in `05-robustness.md`.
+
 The two judges do not agree on the sign of the only interesting comparison. The lexical
 judge says the ledger arm gains 0.085 and beats the sabotaged arm; the model judge says
 it loses 0.100 to frozen and that the sabotaged arm gains 0.200, which is more than the
@@ -76,15 +80,22 @@ to punish a sabotaged update is not measuring adaptation. By that rule this metr
 this fixture, with this judge, is void. It is not a weak positive result. It is not a
 number.
 
+**Added 4 November, Block C.** The verdict stands and the reason is now measured directly:
+with both prompt arms rebuilt from the *same* sentences, the paired ledger-vs-sabotaged
+comparison under the model judge is `-0.400` `[-0.700, -0.100]`, the one interval on this page
+that excludes zero. The real block loses to its own scramble.
+
 Two things keep that from being the whole story, and neither rescues it.
 
-- **The shuffle is a weak sabotage by construction.** It reorders the same true
-  sentences, so the arm is still informed, merely out of order. On this fixture the
-  ledger lines are general statements about language and vocabulary, and reordering six
-  general statements changes almost nothing a model can extract from them. The paired
-  ledger-vs-sabotaged comparison is +0.100 with an interval of ±0.5, which is what a
-  no-op looks like. A sabotage that cannot damage a prompt arm cannot gate one. Block A
-  recorded this; Block B measured it.
+- **The scrambled arm was not the same sentences, and with that fixed the gate fails
+  cleanly.** *Corrected 4 November, Block C.* `build_sabotaged_ledger` shuffled the whole
+  20-line pool and took the first eight, so 4 of its 8 lines differed from the ledger's, and
+  the control varied content and order at once. Fixed, the sabotaged arm scores `+0.072`
+  against the ledger's `+0.075`, and the paired comparison between them is `+0.003`
+  `[-0.031, +0.036]`. A block of the user's own sentences in the wrong order is worth exactly
+  as much as the right one, so this measures the presence of the block and not memory of a
+  moment. Every sabotaged-arm number in this page is from the broken block and is
+  withdrawn.
 - **The model judge has no power at n=10.** A pairwise judge over 10 items can only
   return deltas in steps of 0.1, and the observed interval half-width is 0.5. Half-width
   scales as 1/sqrt(n), so resolving a 0.1 effect needs roughly 250 recent items, and a
@@ -92,10 +103,13 @@ Two things keep that from being the whole story, and neither rescues it.
   consistent with no effect, and the lexical judge's +0.085 whose lower bound is 0.001
   is one resample away from vanishing.
 
-The model judge itself is stable, which rules out the obvious excuse: seeds 0, 1 and 2
-give the same recent verdict for ledger-vs-frozen (-0.100, wins 3 / ties 3 / losses 4)
-and 0.000 to +0.100 for ledger-vs-sabotaged. It is answering the question asked,
-consistently, and saying no.
+**Corrected 4 November, Block C. The model judge is not stable, and this paragraph said
+it was.** Seeds 0, 1 and 2 happened to agree; seeds 3 to 9 do not. Over ten seeds the recent
+delta is -0.10 on four, 0.00 on four and +0.10 on two (mean -0.020, sd 0.079). The harness is
+deterministic (the same seed twice gives a byte-identical report), so the movement is the
+judge: eight of the ten items return the same verdict whichever slot the candidate occupies
+and two do not, and every seed's total is the sum of those two. There is no consistent "no"
+here to quote.
 
 ## Controls
 
@@ -107,12 +121,20 @@ mean words          19.4        15.3        24.3
 agreement rate      0.400       0.000       0.100
 ```
 
-The ledger arm is shorter than frozen, so its lexical gain is not a length effect: on the
-7 items where it is not longer, its lexical gain is +0.118 `[+0.008, +0.236]`, and under
-the model judge -0.143 on the same 7. The frozen arm starts a reply with "yes", "sure" or
-"ok" 40% of the time and the ledger arm never does, so agreement is not what the ledger
-arm wins with either. Neither control changes the verdict; they only remove two ways it
-could have been bought.
+**Corrected 4 November, Block C. The length argument was backwards.** For a
+precision-weighted F1 a shorter reply is the advantaged one, and on these ten items the gain
+rises with words saved: +0.017 per word, r = +0.72, with the fitted gain at equal length
++0.018 rather than +0.085. The subset of seven items where the ledger reply is not longer
+still contains replies eight words shorter, so it cannot remove a graded effect. On the
+regenerated run the equal-length gain is -0.004.
+
+**The agreement control cannot remove anything**, because the ledger arm never agrees: the
+subset is all ten items. What the numbers do support is narrower than "agreement is not what
+it wins with": the model judge's -0.100 is not spread evenly, and sits almost entirely on the
+four items where the frozen reply does open with agreement (-0.75 there, +0.33 on the other
+six). That is consistent with a judge that prefers the agreeing arm, and it cannot be
+separated from the ledger arm simply losing those items at four items. See
+`05-robustness.md`.
 
 ## What this is not
 

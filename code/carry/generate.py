@@ -254,10 +254,16 @@ def build_sabotaged_ledger(
     A model given this block sounds just as informed; it is informed about nothing in
     particular. Deterministic given the seed, because a control that moves between runs
     is not a control.
+
+    The selection is the real ledger's selection, newest first and capped at
+    `max_lines`, and only the order inside it is scrambled. Shuffling the whole pool
+    instead would swap sentences in and out as well, so the two arms would differ in
+    content and order at once and no difference between them could be attributed to
+    either. That was the bug in the first live run: 4 of 8 lines differed.
     """
-    lines = ledger_lines(episodes)
-    random.Random(seed).shuffle(lines)
-    return _format(lines, max_lines=max_lines, max_chars=max_chars)
+    chosen = list(reversed(ledger_lines(episodes)))[:max_lines]
+    random.Random(seed).shuffle(chosen)
+    return _format(chosen, max_lines=max_lines, max_chars=max_chars)
 
 
 # ---------------------------------------------------------------- items and arms
