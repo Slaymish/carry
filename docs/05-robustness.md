@@ -154,8 +154,8 @@ ledger vs sabotaged     -0.400  [-0.700, -0.100]   0/6/4
 
 **The real block loses to its own scramble.** Under the lexical judge the two prompts are
 indistinguishable (+0.075 against +0.072, and +0.003 between them). Under the model judge the
-scrambled block wins the paired comparison by 0.4, with the only interval on this page that
-excludes zero: the ledger arm wins none of the ten items, ties six and loses four.
+scrambled block wins the paired comparison by 0.4, the only recent-item interval in this
+block that excludes zero: the ledger arm wins none of the ten items, ties six and loses four.
 
 That is a better-shaped failure than the one in `04`, and it is still a failure. Whatever the
 prompt arms gain over frozen, the order of the sentences is not it. What is left is measured
@@ -196,7 +196,7 @@ record and a second run is a second draw. A number from one run carries that noi
 numbers above are from one run each.
 
 With the reasoning step left on, the endpoint is openly non-deterministic: six identical
-requests gave six different replies, five of them distinct. `--disable-thinking` is what
+requests gave five distinct replies. `--disable-thinking` is what
 makes any of this reproducible at all, which is a second reason on top of wall-clock.
 
 ## What is left standing

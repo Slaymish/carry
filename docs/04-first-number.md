@@ -82,8 +82,8 @@ number.
 
 **Added 4 November, Block C.** The verdict stands and the reason is now measured directly:
 with both prompt arms rebuilt from the *same* sentences, the paired ledger-vs-sabotaged
-comparison under the model judge is `-0.400` `[-0.700, -0.100]`, the one interval on this page
-that excludes zero. The real block loses to its own scramble.
+comparison under the model judge is `-0.400` `[-0.700, -0.100]`, the only recent-item interval
+on this page that excludes zero. The real block loses to its own scramble.
 
 Two things keep that from being the whole story, and neither rescues it.
 
